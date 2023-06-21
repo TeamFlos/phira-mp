@@ -40,6 +40,7 @@ struct State {
     cb_ready: RCallback<()>,
     cb_cancel_ready: RCallback<()>,
     cb_played: RCallback<()>,
+    cb_abort: RCallback<()>,
 
     touch_frames: Mutex<VecDeque<TouchFrame>>,
     judges: Mutex<VecDeque<JudgeEvent>>,
@@ -75,6 +76,7 @@ impl Client {
             cb_ready: Callback::default(),
             cb_cancel_ready: Callback::default(),
             cb_played: Callback::default(),
+            cb_abort: Callback::default(),
 
             touch_frames: Mutex::default(),
             judges: Mutex::default(),
@@ -298,6 +300,11 @@ impl Client {
             .await
     }
 
+    #[inline]
+    pub async fn abort(&self) -> Result<()> {
+        self.rcall(ClientCommand::Abort, &self.state.cb_abort).await
+    }
+
     pub fn ping_fail_count(&self) -> u8 {
         self.ping_fail_count.load(Ordering::Relaxed)
     }
@@ -384,5 +391,8 @@ async fn process(state: Arc<State>, cmd: ServerCommand) {
             cb(&state.cb_played, res).await;
         }
         ServerCommand::GameEnd => {}
+        ServerCommand::Abort(res) => {
+            cb(&state.cb_abort, res).await;
+        }
     }
 }

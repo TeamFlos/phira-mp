@@ -24,6 +24,7 @@ pub enum InternalRoomState {
     },
     Playing {
         results: HashMap<i32, Record>,
+        aborted: HashSet<i32>,
     },
 }
 
@@ -184,16 +185,17 @@ impl Room {
                     self.send(Message::StartPlaying).await;
                     *self.state.write().await = InternalRoomState::Playing {
                         results: HashMap::new(),
+                        aborted: HashSet::new(),
                     };
                     self.on_state_change().await;
                 }
             }
-            InternalRoomState::Playing { results } => {
+            InternalRoomState::Playing { results, aborted } => {
                 if self
                     .users()
                     .await
                     .into_iter()
-                    .all(|it| results.contains_key(&it.id))
+                    .all(|it| results.contains_key(&it.id) || aborted.contains(&it.id))
                 {
                     drop(guard);
                     // TODO print results

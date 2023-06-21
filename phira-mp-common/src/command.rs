@@ -171,6 +171,7 @@ pub enum ClientCommand {
     Ready,
     CancelReady,
     Played { id: i32 },
+    Abort,
 }
 
 #[derive(Clone, Debug, BinaryData)]
@@ -217,6 +218,9 @@ pub enum Message {
         full_combo: bool,
     },
     GameEnd,
+    Abort {
+        user: String,
+    },
 }
 
 #[derive(Debug, BinaryData, Clone, Copy)]
@@ -265,4 +269,5 @@ pub enum ServerCommand {
     CancelReady(SResult<()>),
     Played(SResult<()>),
     GameEnd,
+    Abort(SResult<()>),
 }

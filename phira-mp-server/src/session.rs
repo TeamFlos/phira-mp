@@ -495,6 +495,7 @@ async fn process(user: Arc<User>, cmd: ClientCommand) -> Option<ServerCommand> {
                     room.send(Message::StartPlaying).await;
                     *room.state.write().await = InternalRoomState::Playing {
                         results: HashMap::new(),
+                        aborted: HashSet::new(),
                     };
                     room.on_state_change().await;
                 } else {
@@ -580,7 +581,10 @@ async fn process(user: Arc<User>, cmd: ClientCommand) -> Option<ServerCommand> {
                 })
                 .await;
                 let mut guard = room.state.write().await;
-                if let InternalRoomState::Playing { results } = guard.deref_mut() {
+                if let InternalRoomState::Playing { results, aborted } = guard.deref_mut() {
+                    if aborted.contains(&user.id) {
+                        bail!("aborted");
+                    }
                     if results.insert(user.id, res).is_some() {
                         bail!("already uploaded");
                     }
@@ -591,6 +595,25 @@ async fn process(user: Arc<User>, cmd: ClientCommand) -> Option<ServerCommand> {
             }
             .await;
             Some(ServerCommand::Played(err_to_str(res)))
+        }
+        ClientCommand::Abort => {
+            let res: Result<()> = async move {
+                get_room!(room);
+                let mut guard = room.state.write().await;
+                if let InternalRoomState::Playing { results, aborted } = guard.deref_mut() {
+                    if results.contains_key(&user.id) {
+                        bail!("already uploaded");
+                    }
+                    if !aborted.insert(user.id) {
+                        bail!("aborted");
+                    }
+                    drop(guard);
+                    room.check_all_ready().await;
+                }
+                Ok(())
+            }
+            .await;
+            Some(ServerCommand::Abort(err_to_str(res)))
         }
     }
 }
