@@ -226,6 +226,7 @@ impl Client {
         *self.state.room.write().await = Some(ClientRoomState {
             id,
             state: RoomState::default(),
+            live_room: false,
             is_host: true,
             is_ready: false,
         });
@@ -243,6 +244,7 @@ impl Client {
         *self.state.room.write().await = Some(ClientRoomState {
             id,
             state,
+            live_room: false,
             is_host: false,
             is_ready: false,
         });
