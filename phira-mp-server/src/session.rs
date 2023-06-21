@@ -23,7 +23,6 @@ use tokio::{
     time,
 };
 use tracing::{debug, debug_span, error, info, trace, warn, Instrument};
-use unic_langid::LanguageIdentifier;
 use uuid::Uuid;
 
 const HOST: &str = "https://api.phira.cn";

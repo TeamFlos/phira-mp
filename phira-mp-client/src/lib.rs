@@ -146,6 +146,10 @@ impl Client {
         self.state.room.blocking_read().as_ref().map(|it| it.state)
     }
 
+    pub async fn room_state(&self) -> Option<RoomState> {
+        self.state.room.read().await.as_ref().map(|it| it.state)
+    }
+
     pub fn blocking_is_host(&self) -> Option<bool> {
         self.state
             .room
