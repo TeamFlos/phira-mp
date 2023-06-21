@@ -5,7 +5,10 @@ use rand::{seq::SliceRandom, thread_rng};
 use std::{
     collections::{HashMap, HashSet},
     ops::Deref,
-    sync::{Arc, Weak},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc, Weak,
+    },
 };
 use tokio::sync::RwLock;
 use tracing::{debug, info};
@@ -39,6 +42,8 @@ pub struct Room {
     pub host: RwLock<Weak<User>>,
     pub state: RwLock<InternalRoomState>,
 
+    live_room: AtomicBool,
+
     users: RwLock<Vec<Weak<User>>>,
     pub chart: RwLock<Option<Chart>>,
 }
@@ -50,9 +55,15 @@ impl Room {
             host: host.clone().into(),
             state: RwLock::default(),
 
+            live_room: AtomicBool::new(false),
+
             users: vec![host].into(),
             chart: RwLock::default(),
         }
+    }
+
+    pub fn is_live_room(&self) -> bool {
+        self.live_room.load(Ordering::SeqCst)
     }
 
     pub async fn client_room_state(&self) -> RoomState {
@@ -66,6 +77,7 @@ impl Room {
         ClientRoomState {
             id: self.id.clone(),
             state: self.client_room_state().await,
+            live_room: self.is_live_room(),
             is_host: self.check_host(user).await.is_ok(),
             is_ready: matches!(&*self.state.read().await, InternalRoomState::WaitForReady { started } if started.contains(&user.id)),
         }

@@ -236,6 +236,7 @@ impl Default for RoomState {
 pub struct ClientRoomState {
     pub id: RoomId,
     pub state: RoomState,
+    pub live_room: bool,
     pub is_host: bool,
     pub is_ready: bool,
 }

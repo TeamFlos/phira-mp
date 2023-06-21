@@ -1,4 +1,7 @@
-use crate::{Chart, InternalRoomState, Record, Room, ServerState};
+use crate::{
+    l10n::{Language, LANGUAGE},
+    tl, Chart, InternalRoomState, Record, Room, ServerState,
+};
 use anyhow::{anyhow, bail, Result};
 use phira_mp_common::{
     ClientCommand, Message, RoomState, ServerCommand, Stream, HEARTBEAT_DISCONNECT_TIMEOUT,
@@ -20,6 +23,7 @@ use tokio::{
     time,
 };
 use tracing::{debug, debug_span, error, info, trace, warn, Instrument};
+use unic_langid::LanguageIdentifier;
 use uuid::Uuid;
 
 const HOST: &str = "https://api.phira.cn";
@@ -27,6 +31,7 @@ const HOST: &str = "https://api.phira.cn";
 pub struct User {
     pub id: i32,
     pub name: String,
+    pub lang: Language,
 
     pub server: Arc<ServerState>,
     session: RwLock<Option<Weak<Session>>>,
@@ -36,10 +41,11 @@ pub struct User {
 }
 
 impl User {
-    pub fn new(id: i32, name: String, server: Arc<ServerState>) -> Self {
+    pub fn new(id: i32, name: String, lang: Language, server: Arc<ServerState>) -> Self {
         Self {
             id,
             name,
+            lang,
 
             server,
             session: RwLock::default(),
@@ -140,6 +146,7 @@ impl Session {
                                         struct UserInfo {
                                             id: i32,
                                             name: String,
+                                            language: String,
                                         }
                                         let resp: Result<UserInfo> = async {
                                             Ok(reqwest::Client::new()
@@ -174,6 +181,10 @@ impl Session {
                                             let user = Arc::new(User::new(
                                                 resp.id,
                                                 resp.name,
+                                                resp.language
+                                                    .parse()
+                                                    .map(Language)
+                                                    .unwrap_or_default(),
                                                 Arc::clone(&server),
                                             ));
                                             let _ = tx.send(Arc::clone(&user));
@@ -212,8 +223,10 @@ impl Session {
                                 return;
                             }
                         }
-                        if let Some(resp) =
-                            process(this.get().map(|it| Arc::clone(&it.user)).unwrap(), cmd).await
+                        let user = this.get().map(|it| Arc::clone(&it.user)).unwrap();
+                        if let Some(resp) = LANGUAGE
+                            .scope(Arc::new(user.lang.clone()), process(user, cmd))
+                            .await
                         {
                             if let Err(err) = send_tx.send(resp).await {
                                 error!(
@@ -338,14 +351,22 @@ async fn process(user: Arc<User>, cmd: ClientCommand) -> Option<ServerCommand> {
         }
         ClientCommand::Touches { frames } => {
             get_room!(~ room);
-            debug!("received {} touch events from {}", frames.len(), user.id);
-            room.broadcast(ServerCommand::Touches { frames }).await;
+            if room.is_live_room() {
+                debug!("received {} touch events from {}", frames.len(), user.id);
+                room.broadcast(ServerCommand::Touches { frames }).await;
+            } else {
+                warn!("received touch events in non-live mode");
+            }
             None
         }
         ClientCommand::Judges { judges } => {
             get_room!(~ room);
-            debug!("received {} judge events from {}", judges.len(), user.id);
-            room.broadcast(ServerCommand::Judges { judges }).await;
+            if room.is_live_room() {
+                debug!("received {} judge events from {}", judges.len(), user.id);
+                room.broadcast(ServerCommand::Judges { judges }).await;
+            } else {
+                warn!("received judge events in non-live mode");
+            }
             None
         }
         ClientCommand::CreateRoom { id } => {
@@ -362,7 +383,7 @@ async fn process(user: Arc<User>, cmd: ClientCommand) -> Option<ServerCommand> {
                         entry.insert(Arc::clone(&room));
                     }
                     Entry::Occupied(_) => {
-                        bail!("room id occupied");
+                        bail!(tl!("create-id-occupied"));
                     }
                 }
                 room.send(Message::CreateRoom {
@@ -387,10 +408,10 @@ async fn process(user: Arc<User>, cmd: ClientCommand) -> Option<ServerCommand> {
                 let room = user.server.rooms.read().await.get(&id).map(Arc::clone);
                 let Some(room) = room else { bail!("room not found") };
                 if !matches!(*room.state.read().await, InternalRoomState::SelectChart) {
-                    bail!("game ongoing");
+                    bail!(tl!("join-game-ongoing"));
                 }
                 if !room.add_user(Arc::downgrade(&user)).await {
-                    bail!("room is full");
+                    bail!(tl!("join-room-full"));
                 }
                 info!(user = user.id, room = id.to_string(), "user join room");
                 room.send(Message::JoinRoom {
@@ -406,9 +427,10 @@ async fn process(user: Arc<User>, cmd: ClientCommand) -> Option<ServerCommand> {
         ClientCommand::LeaveRoom => {
             let res: Result<()> = async move {
                 get_room!(room);
-                if !matches!(*room.state.read().await, InternalRoomState::SelectChart) {
-                    bail!("game ongoing, can't leave");
-                }
+                // TODO is this necessary?
+                // if !matches!(*room.state.read().await, InternalRoomState::SelectChart) {
+                // bail!("game ongoing, can't leave");
+                // }
                 info!(
                     user = user.id,
                     room = room.id.to_string(),
@@ -462,7 +484,7 @@ async fn process(user: Arc<User>, cmd: ClientCommand) -> Option<ServerCommand> {
                 get_room!(room, InternalRoomState::SelectChart);
                 room.check_host(&user).await?;
                 if room.chart.read().await.is_none() {
-                    bail!("no chart selected");
+                    bail!(tl!("start-no-chart-selected"));
                 }
                 debug!(room = room.id.to_string(), "room wait for ready");
                 room.send(Message::GameStart {

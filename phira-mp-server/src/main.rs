@@ -1,3 +1,5 @@
+mod l10n;
+
 mod room;
 pub use room::*;
 
