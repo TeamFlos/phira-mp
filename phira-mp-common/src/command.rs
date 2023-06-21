@@ -3,7 +3,6 @@ use anyhow::{bail, Result};
 use half::f16;
 use phira_mp_macros::BinaryData;
 use std::{fmt::Display, sync::Arc};
-use uuid::Uuid;
 
 type SResult<T> = Result<T, String>;
 
@@ -45,7 +44,7 @@ impl CompactPos {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Varchar<const N: usize>(String);
 impl<const N: usize> Display for Varchar<N> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -64,11 +63,61 @@ impl<const N: usize> TryFrom<String> for Varchar<N> {
 }
 impl<const N: usize> BinaryData for Varchar<N> {
     fn read_binary(r: &mut BinaryReader<'_>) -> Result<Self> {
-        Self::try_from(r.read::<String>()?)
+        let len = r.uleb()? as usize;
+        if len > N {
+            bail!("string too long");
+        }
+        Ok(Varchar(String::from_utf8_lossy(r.take(len)?).into_owned()))
     }
 
     fn write_binary(&self, w: &mut BinaryWriter<'_>) -> Result<()> {
         w.write(&self.0)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct RoomId(Varchar<20>);
+impl RoomId {
+    fn validate(self) -> Result<Self> {
+        if !self
+            .0
+             .0
+            .chars()
+            .all(|it| it == '-' || it == '_' || it.is_ascii_alphanumeric())
+        {
+            bail!("invalid room id");
+        }
+        Ok(self)
+    }
+}
+
+impl From<RoomId> for String {
+    fn from(value: RoomId) -> Self {
+        value.0 .0
+    }
+}
+
+impl TryFrom<String> for RoomId {
+    type Error = anyhow::Error;
+
+    fn try_from(value: String) -> Result<Self> {
+        Self(value.try_into()?).validate()
+    }
+}
+
+impl Display for RoomId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0 .0.fmt(f)
+    }
+}
+
+impl BinaryData for RoomId {
+    fn read_binary(r: &mut BinaryReader<'_>) -> Result<Self> {
+        Self(Varchar::read_binary(r)?).validate()
+    }
+
+    fn write_binary(&self, w: &mut BinaryWriter<'_>) -> Result<()> {
+        self.0.write_binary(w)
     }
 }
 
@@ -113,8 +162,8 @@ pub enum ClientCommand {
     Touches { frames: Arc<Vec<TouchFrame>> },
     Judges { judges: Arc<Vec<JudgeEvent>> },
 
-    CreateRoom,
-    JoinRoom { id: Uuid },
+    CreateRoom { id: RoomId },
+    JoinRoom { id: RoomId },
     LeaveRoom,
 
     SelectChart { id: i32 },
@@ -185,7 +234,7 @@ impl Default for RoomState {
 
 #[derive(Debug, BinaryData, Clone)]
 pub struct ClientRoomState {
-    pub id: Uuid,
+    pub id: RoomId,
     pub state: RoomState,
     pub is_host: bool,
     pub is_ready: bool,
@@ -205,7 +254,7 @@ pub enum ServerCommand {
     ChangeState(RoomState),
     ChangeHost(bool),
 
-    CreateRoom(SResult<Uuid>),
+    CreateRoom(SResult<()>),
     JoinRoom(SResult<RoomState>),
     LeaveRoom(SResult<()>),
 

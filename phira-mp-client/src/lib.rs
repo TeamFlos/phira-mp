@@ -1,6 +1,6 @@
 use anyhow::{Context, Error, Result};
 use phira_mp_common::{
-    ClientCommand, ClientRoomState, JudgeEvent, Message, RoomState, ServerCommand, Stream,
+    ClientCommand, ClientRoomState, JudgeEvent, Message, RoomId, RoomState, ServerCommand, Stream,
     TouchFrame, HEARTBEAT_INTERVAL, HEARTBEAT_TIMEOUT,
 };
 use std::{
@@ -18,7 +18,6 @@ use tokio::{
     time,
 };
 use tracing::{error, trace, warn};
-use uuid::Uuid;
 
 type Callback<T> = Mutex<Option<oneshot::Sender<T>>>;
 type RCallback<T, E = String> = Mutex<Option<oneshot::Sender<Result<T, E>>>>;
@@ -33,7 +32,7 @@ struct State {
 
     cb_authorize: RCallback<Option<ClientRoomState>>,
     cb_chat: RCallback<()>,
-    cb_create_room: RCallback<Uuid>,
+    cb_create_room: RCallback<()>,
     cb_join_room: RCallback<RoomState>,
     cb_leave_room: RCallback<()>,
     cb_select_chart: RCallback<()>,
@@ -135,8 +134,12 @@ impl Client {
         self.state.messages.blocking_lock().drain(..).collect()
     }
 
-    pub fn blocking_room_id(&self) -> Option<Uuid> {
-        self.state.room.blocking_read().as_ref().map(|it| it.id)
+    pub fn blocking_room_id(&self) -> Option<RoomId> {
+        self.state
+            .room
+            .blocking_read()
+            .as_ref()
+            .map(|it| it.id.clone())
     }
 
     pub fn blocking_room_state(&self) -> Option<RoomState> {
@@ -210,23 +213,28 @@ impl Client {
     }
 
     #[inline]
-    pub async fn create_room(&self) -> Result<Uuid> {
-        let id = self
-            .rcall(ClientCommand::CreateRoom, &self.state.cb_create_room)
-            .await?;
+    pub async fn create_room(&self, id: RoomId) -> Result<()> {
+        self.rcall(
+            ClientCommand::CreateRoom { id: id.clone() },
+            &self.state.cb_create_room,
+        )
+        .await?;
         *self.state.room.write().await = Some(ClientRoomState {
             id,
             state: RoomState::default(),
             is_host: true,
             is_ready: false,
         });
-        Ok(id)
+        Ok(())
     }
 
     #[inline]
-    pub async fn join_room(&self, id: Uuid) -> Result<()> {
+    pub async fn join_room(&self, id: RoomId) -> Result<()> {
         let state = self
-            .rcall(ClientCommand::JoinRoom { id }, &self.state.cb_join_room)
+            .rcall(
+                ClientCommand::JoinRoom { id: id.clone() },
+                &self.state.cb_join_room,
+            )
             .await?;
         *self.state.room.write().await = Some(ClientRoomState {
             id,

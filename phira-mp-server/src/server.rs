@@ -1,5 +1,6 @@
 use crate::{vacant_entry, IdMap, Room, SafeMap, Session, User};
 use anyhow::Result;
+use phira_mp_common::RoomId;
 use serde::Deserialize;
 use std::sync::Arc;
 use tokio::{net::TcpListener, sync::mpsc, task::JoinHandle};
@@ -32,7 +33,7 @@ pub struct ServerState {
     pub sessions: IdMap<Arc<Session>>,
     pub users: SafeMap<i32, Arc<User>>,
 
-    pub rooms: IdMap<Arc<Room>>,
+    pub rooms: SafeMap<RoomId, Arc<Room>>,
 
     pub lost_con_tx: mpsc::Sender<Uuid>,
 }
@@ -51,7 +52,7 @@ impl From<TcpListener> for Server {
             sessions: IdMap::default(),
             users: SafeMap::default(),
 
-            rooms: IdMap::default(),
+            rooms: SafeMap::default(),
 
             lost_con_tx,
         });

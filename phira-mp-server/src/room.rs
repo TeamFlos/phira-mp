@@ -1,6 +1,6 @@
 use crate::{Chart, Record, User};
 use anyhow::{bail, Result};
-use phira_mp_common::{ClientRoomState, Message, RoomState, ServerCommand};
+use phira_mp_common::{ClientRoomState, Message, RoomId, RoomState, ServerCommand};
 use rand::{seq::SliceRandom, thread_rng};
 use std::{
     collections::{HashMap, HashSet},
@@ -9,7 +9,6 @@ use std::{
 };
 use tokio::sync::RwLock;
 use tracing::{debug, info};
-use uuid::Uuid;
 
 const ROOM_MAX_USERS: usize = 8;
 
@@ -36,7 +35,7 @@ impl InternalRoomState {
 }
 
 pub struct Room {
-    pub id: Uuid,
+    pub id: RoomId,
     pub host: RwLock<Weak<User>>,
     pub state: RwLock<InternalRoomState>,
 
@@ -45,7 +44,7 @@ pub struct Room {
 }
 
 impl Room {
-    pub fn new(id: Uuid, host: Weak<User>) -> Self {
+    pub fn new(id: RoomId, host: Weak<User>) -> Self {
         Self {
             id,
             host: host.clone().into(),
@@ -65,7 +64,7 @@ impl Room {
 
     pub async fn client_state(&self, user: &User) -> ClientRoomState {
         ClientRoomState {
-            id: self.id,
+            id: self.id.clone(),
             state: self.client_room_state().await,
             is_host: self.check_host(user).await.is_ok(),
             is_ready: matches!(&*self.state.read().await, InternalRoomState::WaitForReady { started } if started.contains(&user.id)),

@@ -1,11 +1,11 @@
-use crate::{vacant_entry, Chart, InternalRoomState, Record, Room, ServerState};
+use crate::{Chart, InternalRoomState, Record, Room, ServerState};
 use anyhow::{anyhow, bail, Result};
 use phira_mp_common::{
     ClientCommand, Message, RoomState, ServerCommand, Stream, HEARTBEAT_DISCONNECT_TIMEOUT,
 };
 use serde::Deserialize;
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{hash_map::Entry, HashMap, HashSet},
     ops::DerefMut,
     sync::{
         atomic::{AtomicBool, Ordering},
@@ -348,18 +348,23 @@ async fn process(user: Arc<User>, cmd: ClientCommand) -> Option<ServerCommand> {
             room.broadcast(ServerCommand::Judges { judges }).await;
             None
         }
-        ClientCommand::CreateRoom => {
-            let res: Result<Uuid> = async move {
+        ClientCommand::CreateRoom { id } => {
+            let res: Result<()> = async move {
                 let mut room_guard = user.room.write().await;
                 if room_guard.is_some() {
                     bail!("already in room");
                 }
 
                 let mut map_guard = user.server.rooms.write().await;
-                let entry = vacant_entry(&mut map_guard);
-                let room_id = *entry.key();
-                let room = Arc::new(Room::new(room_id, Arc::downgrade(&user)));
-                entry.insert(Arc::clone(&room));
+                let room = Arc::new(Room::new(id.clone(), Arc::downgrade(&user)));
+                match map_guard.entry(id.clone()) {
+                    Entry::Vacant(entry) => {
+                        entry.insert(Arc::clone(&room));
+                    }
+                    Entry::Occupied(_) => {
+                        bail!("room id occupied");
+                    }
+                }
                 room.send(Message::CreateRoom {
                     user: user.name.clone(),
                 })
@@ -367,12 +372,8 @@ async fn process(user: Arc<User>, cmd: ClientCommand) -> Option<ServerCommand> {
                 drop(map_guard);
                 *room_guard = Some(room);
 
-                info!(
-                    user = user.id,
-                    room = room_id.to_string(),
-                    "user create room"
-                );
-                Ok(room_id)
+                info!(user = user.id, room = id.to_string(), "user create room");
+                Ok(())
             }
             .await;
             Some(ServerCommand::CreateRoom(err_to_str(res)))
