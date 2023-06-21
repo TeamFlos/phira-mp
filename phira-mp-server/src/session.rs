@@ -414,7 +414,9 @@ async fn process(user: Arc<User>, cmd: ClientCommand) -> Option<ServerCommand> {
                     room = room.id.to_string(),
                     "user leave room"
                 );
-                room.on_user_leave(&user).await;
+                if room.on_user_leave(&user).await {
+                    user.server.rooms.write().await.remove(&room.id);
+                }
                 Ok(())
             }
             .await;

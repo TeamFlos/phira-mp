@@ -125,6 +125,7 @@ impl Room {
     }
 
     /// Return: should the room be dropped
+    #[must_use]
     pub async fn on_user_leave(&self, user: &User) -> bool {
         self.send(Message::LeaveRoom {
             user: user.name.clone(),
