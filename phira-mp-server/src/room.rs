@@ -132,6 +132,7 @@ impl Room {
 
     #[inline]
     pub async fn send(&self, msg: Message) {
+        debug!("send {msg:?}");
         self.broadcast(ServerCommand::Message(msg)).await;
     }
 

@@ -384,6 +384,7 @@ async fn process(state: Arc<State>, cmd: ServerCommand) {
             state.judges.lock().await.extend(judges.iter().cloned());
         }
         ServerCommand::Message(msg) => {
+            println!("recv {msg:?}");
             state.messages.lock().await.push(msg);
         }
         ServerCommand::ChangeState(room) => {
