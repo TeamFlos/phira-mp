@@ -388,7 +388,10 @@ async fn process(state: Arc<State>, cmd: ServerCommand) {
             state.messages.lock().await.push(msg);
         }
         ServerCommand::ChangeState(room) => {
-            state.room.write().await.as_mut().unwrap().state = room;
+            let mut guard = state.room.write().await;
+            let state = guard.as_mut().unwrap();
+            state.state = room;
+            state.is_ready = state.is_host;
         }
         ServerCommand::ChangeHost(me_is_host) => {
             state.room.write().await.as_mut().unwrap().is_host = me_is_host;
