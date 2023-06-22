@@ -69,6 +69,20 @@ impl User {
 
     pub async fn dangle(self: Arc<Self>) {
         warn!(user = self.id, "user dangling");
+        if let Some(room) = self.room.read().await.as_ref() {
+            let state = room.state.read().await;
+            if matches!(*state, InternalRoomState::Playing { .. }) {
+                warn!(user = self.id, "lost connection on playing, aborting");
+                let room = self.room.read().await.as_ref().map(Arc::clone);
+                if let Some(room) = room {
+                    self.server.users.write().await.remove(&self.id);
+                    if room.on_user_leave(&self).await {
+                        self.server.rooms.write().await.remove(&room.id);
+                    }
+                }
+                return;
+            }
+        }
         let dangle_mark = Arc::new(());
         *self.dangle_mark.lock().await = Some(Arc::clone(&dangle_mark));
         tokio::spawn(async move {
@@ -350,7 +364,7 @@ async fn process(user: Arc<User>, cmd: ClientCommand) -> Option<ServerCommand> {
         }
         ClientCommand::Touches { frames } => {
             get_room!(~ room);
-            if room.is_live_room() {
+            if room.is_live() {
                 debug!("received {} touch events from {}", frames.len(), user.id);
                 room.broadcast(ServerCommand::Touches { frames }).await;
             } else {
@@ -360,7 +374,7 @@ async fn process(user: Arc<User>, cmd: ClientCommand) -> Option<ServerCommand> {
         }
         ClientCommand::Judges { judges } => {
             get_room!(~ room);
-            if room.is_live_room() {
+            if room.is_live() {
                 debug!("received {} judge events from {}", judges.len(), user.id);
                 room.broadcast(ServerCommand::Judges { judges }).await;
             } else {
@@ -406,6 +420,9 @@ async fn process(user: Arc<User>, cmd: ClientCommand) -> Option<ServerCommand> {
                 }
                 let room = user.server.rooms.read().await.get(&id).map(Arc::clone);
                 let Some(room) = room else { bail!("room not found") };
+                if room.locked.load(Ordering::SeqCst) {
+                    bail!(tl!("join-room-locked"));
+                }
                 if !matches!(*room.state.read().await, InternalRoomState::SelectChart) {
                     bail!(tl!("join-game-ongoing"));
                 }
@@ -442,6 +459,29 @@ async fn process(user: Arc<User>, cmd: ClientCommand) -> Option<ServerCommand> {
             }
             .await;
             Some(ServerCommand::LeaveRoom(err_to_str(res)))
+        }
+        ClientCommand::LockRoom { lock } => {
+            let res: Result<()> = async move {
+                get_room!(room);
+                room.check_host(&user).await?;
+                info!(
+                    user = user.id,
+                    room = room.id.to_string(),
+                    lock,
+                    "lock room"
+                );
+                room.locked.store(lock, Ordering::SeqCst);
+                room.send(Message::LockRoom {
+                    user: user.name.clone(),
+                    lock,
+                })
+                .await;
+                room.broadcast(ServerCommand::OnRoomLocked(room.is_locked()))
+                    .await;
+                Ok(())
+            }
+            .await;
+            Some(ServerCommand::LockRoom(err_to_str(res)))
         }
         ClientCommand::SelectChart { id } => {
             let res: Result<()> = async move {

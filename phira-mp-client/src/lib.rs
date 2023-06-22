@@ -35,6 +35,7 @@ struct State {
     cb_create_room: RCallback<()>,
     cb_join_room: RCallback<RoomState>,
     cb_leave_room: RCallback<()>,
+    cb_lock_room: RCallback<()>,
     cb_select_chart: RCallback<()>,
     cb_request_start: RCallback<()>,
     cb_ready: RCallback<()>,
@@ -71,6 +72,7 @@ impl Client {
             cb_create_room: Callback::default(),
             cb_join_room: Callback::default(),
             cb_leave_room: Callback::default(),
+            cb_lock_room: Callback::default(),
             cb_select_chart: Callback::default(),
             cb_request_start: Callback::default(),
             cb_ready: Callback::default(),
@@ -228,7 +230,8 @@ impl Client {
         *self.state.room.write().await = Some(ClientRoomState {
             id,
             state: RoomState::default(),
-            live_room: false,
+            live: false,
+            locked: false,
             is_host: true,
             is_ready: false,
         });
@@ -246,7 +249,8 @@ impl Client {
         *self.state.room.write().await = Some(ClientRoomState {
             id,
             state,
-            live_room: false,
+            live: false,
+            locked: false,
             is_host: false,
             is_ready: false,
         });
@@ -259,6 +263,12 @@ impl Client {
             .await?;
         *self.state.room.write().await = None;
         Ok(())
+    }
+
+    #[inline]
+    pub async fn lock_room(&self, lock: bool) -> Result<()> {
+        self.rcall(ClientCommand::LockRoom { lock }, &self.state.cb_lock_room)
+            .await
     }
 
     #[inline]
@@ -375,6 +385,9 @@ async fn process(state: Arc<State>, cmd: ServerCommand) {
         ServerCommand::LeaveRoom(res) => {
             cb(&state.cb_leave_room, res).await;
         }
+        ServerCommand::LockRoom(res) => {
+            cb(&state.cb_lock_room, res).await;
+        }
         ServerCommand::SelectChart(res) => {
             cb(&state.cb_select_chart, res).await;
         }
@@ -393,6 +406,9 @@ async fn process(state: Arc<State>, cmd: ServerCommand) {
         ServerCommand::GameEnd => {}
         ServerCommand::Abort(res) => {
             cb(&state.cb_abort, res).await;
+        }
+        ServerCommand::OnRoomLocked(locked) => {
+            state.room.write().await.as_mut().unwrap().locked = locked;
         }
     }
 }

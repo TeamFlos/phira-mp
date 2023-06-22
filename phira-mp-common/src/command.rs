@@ -165,6 +165,7 @@ pub enum ClientCommand {
     CreateRoom { id: RoomId },
     JoinRoom { id: RoomId },
     LeaveRoom,
+    LockRoom { lock: bool },
 
     SelectChart { id: i32 },
     RequestStart,
@@ -221,6 +222,10 @@ pub enum Message {
     Abort {
         user: String,
     },
+    LockRoom {
+        user: String,
+        lock: bool,
+    },
 }
 
 #[derive(Debug, BinaryData, Clone, Copy)]
@@ -240,7 +245,8 @@ impl Default for RoomState {
 pub struct ClientRoomState {
     pub id: RoomId,
     pub state: RoomState,
-    pub live_room: bool,
+    pub live: bool,
+    pub locked: bool,
     pub is_host: bool,
     pub is_ready: bool,
 }
@@ -262,6 +268,7 @@ pub enum ServerCommand {
     CreateRoom(SResult<()>),
     JoinRoom(SResult<RoomState>),
     LeaveRoom(SResult<()>),
+    LockRoom(SResult<()>),
 
     SelectChart(SResult<()>),
     RequestStart(SResult<()>),
@@ -270,4 +277,6 @@ pub enum ServerCommand {
     Played(SResult<()>),
     GameEnd,
     Abort(SResult<()>),
+
+    OnRoomLocked(bool),
 }
