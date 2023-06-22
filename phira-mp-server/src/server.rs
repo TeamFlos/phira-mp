@@ -62,7 +62,16 @@ impl From<TcpListener> for Server {
                 while let Some(id) = lost_con_rx.recv().await {
                     warn!("lost connection with {id}");
                     if let Some(session) = state.sessions.write().await.remove(&id) {
-                        Arc::clone(&session.user).dangle().await;
+                        if session
+                            .user
+                            .session
+                            .read()
+                            .await
+                            .as_ref()
+                            .map_or(false, |it| it.ptr_eq(&Arc::downgrade(&session)))
+                        {
+                            Arc::clone(&session.user).dangle().await;
+                        }
                     }
                 }
             }

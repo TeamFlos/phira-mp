@@ -33,7 +33,7 @@ pub struct User {
     pub lang: Language,
 
     pub server: Arc<ServerState>,
-    session: RwLock<Option<Weak<Session>>>,
+    pub session: RwLock<Option<Weak<Session>>>,
     pub room: RwLock<Option<Arc<Room>>>,
 
     pub dangle_mark: Mutex<Option<Arc<()>>>,
