@@ -608,6 +608,10 @@ async fn process(user: Arc<User>, cmd: ClientCommand) -> Option<ServerCommand> {
                         bail!("aborted");
                     }
                     drop(guard);
+                    room.send(Message::Abort {
+                        user: user.name.clone(),
+                    })
+                    .await;
                     room.check_all_ready().await;
                 }
                 Ok(())
