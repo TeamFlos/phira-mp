@@ -163,7 +163,7 @@ pub enum ClientCommand {
     Judges { judges: Arc<Vec<JudgeEvent>> },
 
     CreateRoom { id: RoomId },
-    JoinRoom { id: RoomId },
+    JoinRoom { id: RoomId, monitor: bool },
     LeaveRoom,
     LockRoom { lock: bool },
     CycleRoom { cycle: bool },

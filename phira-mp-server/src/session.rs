@@ -26,6 +26,7 @@ use tracing::{debug, debug_span, error, info, trace, warn, Instrument};
 use uuid::Uuid;
 
 const HOST: &str = "https://api.phira.cn";
+const MONITORS: &[i32] = &[2];
 
 pub struct User {
     pub id: i32,
@@ -52,6 +53,10 @@ impl User {
 
             dangle_mark: Mutex::default(),
         }
+    }
+
+    pub fn can_monitor(&self) -> bool {
+        MONITORS.contains(&self.id)
     }
 
     pub async fn set_session(&self, session: Weak<Session>) {
@@ -366,7 +371,8 @@ async fn process(user: Arc<User>, cmd: ClientCommand) -> Option<ServerCommand> {
             get_room!(~ room);
             if room.is_live() {
                 debug!("received {} touch events from {}", frames.len(), user.id);
-                room.broadcast(ServerCommand::Touches { frames }).await;
+                room.broadcast_monitors(ServerCommand::Touches { frames })
+                    .await;
             } else {
                 warn!("received touch events in non-live mode");
             }
@@ -376,7 +382,8 @@ async fn process(user: Arc<User>, cmd: ClientCommand) -> Option<ServerCommand> {
             get_room!(~ room);
             if room.is_live() {
                 debug!("received {} judge events from {}", judges.len(), user.id);
-                room.broadcast(ServerCommand::Judges { judges }).await;
+                room.broadcast_monitors(ServerCommand::Judges { judges })
+                    .await;
             } else {
                 warn!("received judge events in non-live mode");
             }
@@ -412,7 +419,7 @@ async fn process(user: Arc<User>, cmd: ClientCommand) -> Option<ServerCommand> {
             .await;
             Some(ServerCommand::CreateRoom(err_to_str(res)))
         }
-        ClientCommand::JoinRoom { id } => {
+        ClientCommand::JoinRoom { id, monitor } => {
             let res: Result<RoomState> = async move {
                 let mut room_guard = user.room.write().await;
                 if room_guard.is_some() {
@@ -426,10 +433,18 @@ async fn process(user: Arc<User>, cmd: ClientCommand) -> Option<ServerCommand> {
                 if !matches!(*room.state.read().await, InternalRoomState::SelectChart) {
                     bail!(tl!("join-game-ongoing"));
                 }
-                if !room.add_user(Arc::downgrade(&user)).await {
+                if monitor && !user.can_monitor() {
+                    bail!(tl!("join-cant-monitor"));
+                }
+                if !room.add_user(Arc::downgrade(&user), monitor).await {
                     bail!(tl!("join-room-full"));
                 }
-                info!(user = user.id, room = id.to_string(), "user join room");
+                info!(
+                    user = user.id,
+                    room = id.to_string(),
+                    monitor,
+                    "user join room"
+                );
                 room.send(Message::JoinRoom {
                     user: user.name.clone(),
                 })

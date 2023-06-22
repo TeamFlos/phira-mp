@@ -246,10 +246,13 @@ impl Client {
     }
 
     #[inline]
-    pub async fn join_room(&self, id: RoomId) -> Result<()> {
+    pub async fn join_room(&self, id: RoomId, monitor: bool) -> Result<()> {
         let state = self
             .rcall(
-                ClientCommand::JoinRoom { id: id.clone() },
+                ClientCommand::JoinRoom {
+                    id: id.clone(),
+                    monitor,
+                },
                 &self.state.cb_join_room,
             )
             .await?;

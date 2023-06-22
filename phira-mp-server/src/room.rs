@@ -48,6 +48,7 @@ pub struct Room {
     pub cycle: AtomicBool,
 
     users: RwLock<Vec<Weak<User>>>,
+    monitors: RwLock<Vec<Weak<User>>>,
     pub chart: RwLock<Option<Chart>>,
 }
 
@@ -63,6 +64,7 @@ impl Room {
             cycle: AtomicBool::new(false),
 
             users: vec![host].into(),
+            monitors: Vec::new().into(),
             chart: RwLock::default(),
         }
     }
@@ -103,19 +105,35 @@ impl Room {
             .await;
     }
 
-    pub async fn add_user(&self, user: Weak<User>) -> bool {
-        let mut guard = self.users.write().await;
-        guard.retain(|it| it.strong_count() > 0);
-        if guard.len() >= ROOM_MAX_USERS {
-            false
-        } else {
+    pub async fn add_user(&self, user: Weak<User>, monitor: bool) -> bool {
+        if monitor {
+            let mut guard = self.monitors.write().await;
+            guard.retain(|it| it.strong_count() > 0);
             guard.push(user);
             true
+        } else {
+            let mut guard = self.users.write().await;
+            guard.retain(|it| it.strong_count() > 0);
+            if guard.len() >= ROOM_MAX_USERS {
+                false
+            } else {
+                guard.push(user);
+                true
+            }
         }
     }
 
     pub async fn users(&self) -> Vec<Arc<User>> {
         self.users
+            .read()
+            .await
+            .iter()
+            .filter_map(|it| it.upgrade())
+            .collect()
+    }
+
+    pub async fn monitors(&self) -> Vec<Arc<User>> {
+        self.monitors
             .read()
             .await
             .iter()
@@ -138,6 +156,12 @@ impl Room {
 
     pub async fn broadcast(&self, cmd: ServerCommand) {
         for session in self.users().await {
+            session.try_send(cmd.clone()).await;
+        }
+    }
+
+    pub async fn broadcast_monitors(&self, cmd: ServerCommand) {
+        for session in self.monitors().await {
             session.try_send(cmd.clone()).await;
         }
     }
