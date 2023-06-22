@@ -70,7 +70,6 @@ where
                 let mut len_buf = [0u8; 5];
                 while let Some(payload) = send_rx.recv().await {
                     buffer.clear();
-                    tracing::debug!("deliver {:?}", payload);
                     encode_packet(&payload, &mut buffer);
                     trace!("sending {} bytes", buffer.len());
 
@@ -135,7 +134,7 @@ where
                             break;
                         }
                     };
-                    tokio::spawn(handler(Arc::clone(&send_tx), payload));
+                    handler(Arc::clone(&send_tx), payload).await;
                 }
                 Ok(())
             }
