@@ -140,6 +140,10 @@ impl Client {
         self.state.messages.blocking_lock().drain(..).collect()
     }
 
+    pub fn blocking_state(&self) -> Option<ClientRoomState> {
+        self.state.room.blocking_read().clone()
+    }
+
     pub fn blocking_room_id(&self) -> Option<RoomId> {
         self.state
             .room
