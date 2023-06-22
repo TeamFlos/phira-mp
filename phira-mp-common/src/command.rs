@@ -166,6 +166,7 @@ pub enum ClientCommand {
     JoinRoom { id: RoomId },
     LeaveRoom,
     LockRoom { lock: bool },
+    CycleRoom { cycle: bool },
 
     SelectChart { id: i32 },
     RequestStart,
@@ -223,8 +224,10 @@ pub enum Message {
         user: String,
     },
     LockRoom {
-        user: String,
         lock: bool,
+    },
+    CycleRoom {
+        cycle: bool,
     },
 }
 
@@ -247,6 +250,7 @@ pub struct ClientRoomState {
     pub state: RoomState,
     pub live: bool,
     pub locked: bool,
+    pub cycle: bool,
     pub is_host: bool,
     pub is_ready: bool,
 }
@@ -269,6 +273,7 @@ pub enum ServerCommand {
     JoinRoom(SResult<RoomState>),
     LeaveRoom(SResult<()>),
     LockRoom(SResult<()>),
+    CycleRoom(SResult<()>),
 
     SelectChart(SResult<()>),
     RequestStart(SResult<()>),
@@ -279,4 +284,5 @@ pub enum ServerCommand {
     Abort(SResult<()>),
 
     OnRoomLocked(bool),
+    OnRoomCycle(bool),
 }

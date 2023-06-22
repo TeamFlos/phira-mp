@@ -36,6 +36,7 @@ struct State {
     cb_join_room: RCallback<RoomState>,
     cb_leave_room: RCallback<()>,
     cb_lock_room: RCallback<()>,
+    cb_cycle_room: RCallback<()>,
     cb_select_chart: RCallback<()>,
     cb_request_start: RCallback<()>,
     cb_ready: RCallback<()>,
@@ -73,6 +74,7 @@ impl Client {
             cb_join_room: Callback::default(),
             cb_leave_room: Callback::default(),
             cb_lock_room: Callback::default(),
+            cb_cycle_room: Callback::default(),
             cb_select_chart: Callback::default(),
             cb_request_start: Callback::default(),
             cb_ready: Callback::default(),
@@ -232,6 +234,7 @@ impl Client {
             state: RoomState::default(),
             live: false,
             locked: false,
+            cycle: false,
             is_host: true,
             is_ready: false,
         });
@@ -251,6 +254,7 @@ impl Client {
             state,
             live: false,
             locked: false,
+            cycle: false,
             is_host: false,
             is_ready: false,
         });
@@ -269,6 +273,15 @@ impl Client {
     pub async fn lock_room(&self, lock: bool) -> Result<()> {
         self.rcall(ClientCommand::LockRoom { lock }, &self.state.cb_lock_room)
             .await
+    }
+
+    #[inline]
+    pub async fn cycle_room(&self, cycle: bool) -> Result<()> {
+        self.rcall(
+            ClientCommand::CycleRoom { cycle },
+            &self.state.cb_cycle_room,
+        )
+        .await
     }
 
     #[inline]
@@ -388,6 +401,9 @@ async fn process(state: Arc<State>, cmd: ServerCommand) {
         ServerCommand::LockRoom(res) => {
             cb(&state.cb_lock_room, res).await;
         }
+        ServerCommand::CycleRoom(res) => {
+            cb(&state.cb_cycle_room, res).await;
+        }
         ServerCommand::SelectChart(res) => {
             cb(&state.cb_select_chart, res).await;
         }
@@ -409,6 +425,9 @@ async fn process(state: Arc<State>, cmd: ServerCommand) {
         }
         ServerCommand::OnRoomLocked(locked) => {
             state.room.write().await.as_mut().unwrap().locked = locked;
+        }
+        ServerCommand::OnRoomCycle(cycle) => {
+            state.room.write().await.as_mut().unwrap().cycle = cycle;
         }
     }
 }

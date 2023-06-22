@@ -471,17 +471,32 @@ async fn process(user: Arc<User>, cmd: ClientCommand) -> Option<ServerCommand> {
                     "lock room"
                 );
                 room.locked.store(lock, Ordering::SeqCst);
-                room.send(Message::LockRoom {
-                    user: user.name.clone(),
-                    lock,
-                })
-                .await;
+                room.send(Message::LockRoom { lock }).await;
                 room.broadcast(ServerCommand::OnRoomLocked(room.is_locked()))
                     .await;
                 Ok(())
             }
             .await;
             Some(ServerCommand::LockRoom(err_to_str(res)))
+        }
+        ClientCommand::CycleRoom { cycle } => {
+            let res: Result<()> = async move {
+                get_room!(room);
+                room.check_host(&user).await?;
+                info!(
+                    user = user.id,
+                    room = room.id.to_string(),
+                    cycle,
+                    "cycle room"
+                );
+                room.cycle.store(cycle, Ordering::SeqCst);
+                room.send(Message::CycleRoom { cycle }).await;
+                room.broadcast(ServerCommand::OnRoomCycle(room.is_cycle()))
+                    .await;
+                Ok(())
+            }
+            .await;
+            Some(ServerCommand::CycleRoom(err_to_str(res)))
         }
         ClientCommand::SelectChart { id } => {
             let res: Result<()> = async move {

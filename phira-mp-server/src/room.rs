@@ -45,6 +45,7 @@ pub struct Room {
 
     live: AtomicBool,
     pub locked: AtomicBool,
+    pub cycle: AtomicBool,
 
     users: RwLock<Vec<Weak<User>>>,
     pub chart: RwLock<Option<Chart>>,
@@ -59,6 +60,7 @@ impl Room {
 
             live: AtomicBool::new(false),
             locked: AtomicBool::new(false),
+            cycle: AtomicBool::new(false),
 
             users: vec![host].into(),
             chart: RwLock::default(),
@@ -71,6 +73,10 @@ impl Room {
 
     pub fn is_locked(&self) -> bool {
         self.locked.load(Ordering::SeqCst)
+    }
+
+    pub fn is_cycle(&self) -> bool {
+        self.cycle.load(Ordering::SeqCst)
     }
 
     pub async fn client_room_state(&self) -> RoomState {
@@ -86,6 +92,7 @@ impl Room {
             state: self.client_room_state().await,
             live: self.is_live(),
             locked: self.is_locked(),
+            cycle: self.is_cycle(),
             is_host: self.check_host(user).await.is_ok(),
             is_ready: matches!(&*self.state.read().await, InternalRoomState::WaitForReady { started } if started.contains(&user.id)),
         }
@@ -209,6 +216,28 @@ impl Room {
                     self.broadcast(ServerCommand::GameEnd).await;
                     self.send(Message::GameEnd).await;
                     *self.state.write().await = InternalRoomState::SelectChart;
+                    if self.is_cycle() {
+                        debug!(room = self.id.to_string(), "cycling");
+                        let host = Weak::clone(&*self.host.read().await);
+                        let new_host = {
+                            let users = self.users().await;
+                            let index = users
+                                .iter()
+                                .position(|it| host.ptr_eq(&Arc::downgrade(it)))
+                                .map(|it| (it + 1) % users.len())
+                                .unwrap_or_default();
+                            users.into_iter().nth(index).unwrap()
+                        };
+                        *self.host.write().await = Arc::downgrade(&new_host);
+                        self.send(Message::NewHost {
+                            user: new_host.name.clone(),
+                        })
+                        .await;
+                        if let Some(old) = host.upgrade() {
+                            old.try_send(ServerCommand::ChangeHost(false)).await;
+                        }
+                        new_host.try_send(ServerCommand::ChangeHost(true)).await;
+                    }
                     self.on_state_change().await;
                 }
             }
