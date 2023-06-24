@@ -30,7 +30,7 @@ struct State {
 
     room: RwLock<Option<ClientRoomState>>,
 
-    cb_authorize: RCallback<Option<ClientRoomState>>,
+    cb_authenticate: RCallback<Option<ClientRoomState>>,
     cb_chat: RCallback<()>,
     cb_create_room: RCallback<()>,
     cb_join_room: RCallback<RoomState>,
@@ -68,7 +68,7 @@ impl Client {
 
             room: RwLock::default(),
 
-            cb_authorize: Callback::default(),
+            cb_authenticate: Callback::default(),
             cb_chat: Callback::default(),
             cb_create_room: Callback::default(),
             cb_join_room: Callback::default(),
@@ -202,13 +202,13 @@ impl Client {
     }
 
     #[inline]
-    pub async fn authorize(&self, token: impl Into<String>) -> Result<()> {
+    pub async fn authenticate(&self, token: impl Into<String>) -> Result<()> {
         let room = self
             .rcall(
-                ClientCommand::Authorize {
+                ClientCommand::Authenticate {
                     token: token.into().try_into()?,
                 },
-                &self.state.cb_authorize,
+                &self.state.cb_authenticate,
             )
             .await?;
         *self.state.room.write().await = room;
@@ -370,8 +370,8 @@ async fn process(state: Arc<State>, cmd: ServerCommand) {
         ServerCommand::Pong => {
             state.ping_notify.notify_one();
         }
-        ServerCommand::Authorize(res) => {
-            cb(&state.cb_authorize, res).await;
+        ServerCommand::Authenticate(res) => {
+            cb(&state.cb_authenticate, res).await;
         }
         ServerCommand::Chat(res) => {
             cb(&state.cb_chat, res).await;

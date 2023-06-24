@@ -129,7 +129,7 @@ impl Session {
                 let mut tx = Some(tx);
                 let server = Arc::clone(&server);
                 let last_recv = Arc::clone(&last_recv);
-                let waiting_for_authorize = Arc::new(AtomicBool::new(true));
+                let waiting_for_authenticate = Arc::new(AtomicBool::new(true));
                 let panicked = Arc::new(AtomicBool::new(false));
                 move |send_tx, cmd| {
                     let this = Arc::clone(&this);
@@ -137,7 +137,7 @@ impl Session {
                     let tx = tx.take();
                     let server = Arc::clone(&server);
                     let last_recv = Arc::clone(&last_recv);
-                    let waiting_for_authorize = Arc::clone(&waiting_for_authorize);
+                    let waiting_for_authenticate = Arc::clone(&waiting_for_authenticate);
                     let panicked = Arc::clone(&panicked);
                     async move {
                         *last_recv.lock().await = Instant::now();
@@ -148,8 +148,8 @@ impl Session {
                             let _ = send_tx.send(ServerCommand::Pong).await;
                             return;
                         }
-                        if waiting_for_authorize.load(Ordering::SeqCst) {
-                            if let ClientCommand::Authorize { token } = cmd {
+                        if waiting_for_authenticate.load(Ordering::SeqCst) {
+                            if let ClientCommand::Authenticate { token } = cmd {
                                 let Some(tx) = tx else { return };
                                 let res: Result<()> = {
                                     let this = Arc::clone(&this);
@@ -159,7 +159,7 @@ impl Session {
                                         if token.len() != 32 {
                                             bail!("invalid token");
                                         }
-                                        debug!("session {id}: authorize {token}");
+                                        debug!("session {id}: authenticate {token}");
                                         #[derive(Debug, Deserialize)]
                                         struct UserInfo {
                                             id: i32,
@@ -216,9 +216,9 @@ impl Session {
                                 }
                                 .await;
                                 if let Err(err) = res {
-                                    warn!("failed to authorize: {err:?}");
+                                    warn!("failed to authenticate: {err:?}");
                                     let _ = send_tx
-                                        .send(ServerCommand::Authorize(Err(err.to_string())))
+                                        .send(ServerCommand::Authenticate(Err(err.to_string())))
                                         .await;
                                     panicked.store(true, Ordering::SeqCst);
                                     if let Err(err) = server.lost_con_tx.send(id).await {
@@ -231,13 +231,13 @@ impl Session {
                                         None => None,
                                     };
                                     let _ = send_tx
-                                        .send(ServerCommand::Authorize(Ok(room_state)))
+                                        .send(ServerCommand::Authenticate(Ok(room_state)))
                                         .await;
-                                    waiting_for_authorize.store(false, Ordering::SeqCst);
+                                    waiting_for_authenticate.store(false, Ordering::SeqCst);
                                 }
                                 return;
                             } else {
-                                warn!("packet before authorization, ignoring: {cmd:?}");
+                                warn!("packet before authentication, ignoring: {cmd:?}");
                                 return;
                             }
                         }
@@ -355,8 +355,8 @@ async fn process(user: Arc<User>, cmd: ClientCommand) -> Option<ServerCommand> {
     }
     match cmd {
         ClientCommand::Ping => unreachable!(),
-        ClientCommand::Authorize { .. } => Some(ServerCommand::Authorize(Err(
-            "repeated authorize".to_owned(),
+        ClientCommand::Authenticate { .. } => Some(ServerCommand::Authenticate(Err(
+            "repeated authenticate".to_owned(),
         ))),
         ClientCommand::Chat { message } => {
             let res: Result<()> = async move {

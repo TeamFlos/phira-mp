@@ -156,7 +156,7 @@ pub struct JudgeEvent {
 pub enum ClientCommand {
     Ping,
 
-    Authorize { token: Varchar<32> },
+    Authenticate { token: Varchar<32> },
     Chat { message: Varchar<200> },
 
     Touches { frames: Arc<Vec<TouchFrame>> },
@@ -259,7 +259,7 @@ pub struct ClientRoomState {
 pub enum ServerCommand {
     Pong,
 
-    Authorize(SResult<Option<ClientRoomState>>),
+    Authenticate(SResult<Option<ClientRoomState>>),
     Chat(SResult<()>),
 
     Touches { frames: Arc<Vec<TouchFrame>> },
