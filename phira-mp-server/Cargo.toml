@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-anyhow = "1.0"
+anyhow = { version = "1.0", features = ["backtrace"] }
 phira-mp-common = { path = "../phira-mp-common" }
 reqwest = { version = "0.11.18", features = ["json"] }
 serde = { version = "1.0.163", features = ["derive"] }
