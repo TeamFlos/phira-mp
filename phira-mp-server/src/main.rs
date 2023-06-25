@@ -10,6 +10,7 @@ mod session;
 pub use session::*;
 
 use anyhow::Result;
+use tracing::warn;
 use std::{
     collections::{
         hash_map::{Entry, VacantEntry},
@@ -82,6 +83,8 @@ async fn main() -> Result<()> {
     let _guard = init_log("phira-mp")?;
     let listener: Server = TcpListener::bind("[::]:7890").await?.into();
     loop {
-        listener.accept().await?;
+        if let Err(err) = listener.accept().await {
+            warn!("failed to accept: {err:?}");
+        }
     }
 }
