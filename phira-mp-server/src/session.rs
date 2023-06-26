@@ -239,7 +239,10 @@ impl Session {
                                         None => None,
                                     };
                                     let _ = send_tx
-                                        .send(ServerCommand::Authenticate(Ok(room_state)))
+                                        .send(ServerCommand::Authenticate(Ok((
+                                            user.to_info(),
+                                            room_state,
+                                        ))))
                                         .await;
                                     waiting_for_authenticate.store(false, Ordering::SeqCst);
                                 }
@@ -450,6 +453,8 @@ async fn process(user: Arc<User>, cmd: ClientCommand) -> Option<ServerCommand> {
                     monitor,
                     "user join room"
                 );
+                room.broadcast(ServerCommand::OnJoinRoom(user.to_info()))
+                    .await;
                 room.send(Message::JoinRoom { user: user.id }).await;
                 *room_guard = Some(Arc::clone(&room));
                 Ok((

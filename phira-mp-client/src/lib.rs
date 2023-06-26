@@ -28,9 +28,10 @@ struct State {
     delay: Mutex<Option<Duration>>,
     ping_notify: Notify,
 
+    me: RwLock<Option<UserInfo>>,
     room: RwLock<Option<ClientRoomState>>,
 
-    cb_authenticate: RCallback<Option<ClientRoomState>>,
+    cb_authenticate: RCallback<(UserInfo, Option<ClientRoomState>)>,
     cb_chat: RCallback<()>,
     cb_create_room: RCallback<()>,
     cb_join_room: RCallback<(RoomState, Vec<UserInfo>)>,
@@ -66,6 +67,7 @@ impl Client {
             delay: Mutex::default(),
             ping_notify: Notify::new(),
 
+            me: RwLock::default(),
             room: RwLock::default(),
 
             cb_authenticate: Callback::default(),
@@ -212,7 +214,7 @@ impl Client {
 
     #[inline]
     pub async fn authenticate(&self, token: impl Into<String>) -> Result<()> {
-        let room = self
+        let (me, room) = self
             .rcall(
                 ClientCommand::Authenticate {
                     token: token.into().try_into()?,
@@ -220,6 +222,7 @@ impl Client {
                 &self.state.cb_authenticate,
             )
             .await?;
+        *self.state.me.write().await = Some(me);
         *self.state.room.write().await = room;
         Ok(())
     }
@@ -242,6 +245,7 @@ impl Client {
             &self.state.cb_create_room,
         )
         .await?;
+        let me = self.state.me.read().await.clone().unwrap();
         *self.state.room.write().await = Some(ClientRoomState {
             id,
             state: RoomState::default(),
@@ -250,7 +254,7 @@ impl Client {
             cycle: false,
             is_host: true,
             is_ready: false,
-            users: HashMap::new(),
+            users: std::iter::once((me.id, me)).collect(),
         });
         Ok(())
     }
@@ -416,8 +420,18 @@ async fn process(state: Arc<State>, cmd: ServerCommand) {
         ServerCommand::JoinRoom(res) => {
             cb(&state.cb_join_room, res).await;
         }
+        ServerCommand::OnJoinRoom(user) => {
+            if let Some(room) = state.room.write().await.as_mut() {
+                room.users.insert(user.id, user);
+            }
+        }
         ServerCommand::LeaveRoom(res) => {
             cb(&state.cb_leave_room, res).await;
+        }
+        ServerCommand::OnLeaveRoom(user) => {
+            if let Some(room) = state.room.write().await.as_mut() {
+                room.users.remove(&user.id);
+            }
         }
         ServerCommand::LockRoom(res) => {
             cb(&state.cb_lock_room, res).await;

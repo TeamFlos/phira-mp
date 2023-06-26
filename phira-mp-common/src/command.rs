@@ -280,7 +280,7 @@ pub struct ClientRoomState {
 pub enum ServerCommand {
     Pong,
 
-    Authenticate(SResult<Option<ClientRoomState>>),
+    Authenticate(SResult<(UserInfo, Option<ClientRoomState>)>),
     Chat(SResult<()>),
 
     Touches { frames: Arc<Vec<TouchFrame>> },
@@ -292,7 +292,9 @@ pub enum ServerCommand {
 
     CreateRoom(SResult<()>),
     JoinRoom(SResult<(RoomState, Vec<UserInfo>)>),
+    OnJoinRoom(UserInfo),
     LeaveRoom(SResult<()>),
+    OnLeaveRoom(UserInfo),
     LockRoom(SResult<()>),
     CycleRoom(SResult<()>),
 
