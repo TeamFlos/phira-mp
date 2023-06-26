@@ -2,7 +2,7 @@ use crate::{BinaryData, BinaryReader, BinaryWriter};
 use anyhow::{bail, Result};
 use half::f16;
 use phira_mp_macros::BinaryData;
-use std::{fmt::Display, sync::Arc};
+use std::{collections::HashMap, fmt::Display, sync::Arc};
 
 type SResult<T> = Result<T, String>;
 
@@ -179,49 +179,48 @@ pub enum ClientCommand {
 #[derive(Clone, Debug, BinaryData)]
 pub enum Message {
     Chat {
-        user_id: i32,
-        user: String,
+        user: i32,
         content: String,
     },
     CreateRoom {
-        user: String,
+        user: i32,
     },
     JoinRoom {
-        user: String,
+        user: i32,
     },
     LeaveRoom {
-        user: String,
+        user: i32,
     },
     NewHost {
-        user: String,
+        user: i32,
     },
     SelectChart {
-        user: String,
+        user: i32,
         name: String,
         id: i32,
     },
     GameStart {
-        user: String,
+        user: i32,
     },
     Ready {
-        user: String,
+        user: i32,
     },
     CancelReady {
-        user: String,
+        user: i32,
     },
     CancelGame {
-        user: String,
+        user: i32,
     },
     StartPlaying,
     Played {
-        user: String,
+        user: i32,
         score: i32,
         accuracy: f32,
         full_combo: bool,
     },
     GameEnd,
     Abort {
-        user: String,
+        user: i32,
     },
     LockRoom {
         lock: bool,
@@ -244,6 +243,27 @@ impl Default for RoomState {
     }
 }
 
+#[derive(Clone, Debug)]
+pub struct UserInfo {
+    pub id: i32,
+    pub name: String,
+}
+
+impl BinaryData for UserInfo {
+    fn read_binary(r: &mut BinaryReader<'_>) -> Result<Self> {
+        Ok(Self {
+            id: r.read()?,
+            name: r.read()?,
+        })
+    }
+
+    fn write_binary(&self, w: &mut BinaryWriter<'_>) -> Result<()> {
+        w.write_val(self.id)?;
+        w.write(&self.name)?;
+        Ok(())
+    }
+}
+
 #[derive(Debug, BinaryData, Clone)]
 pub struct ClientRoomState {
     pub id: RoomId,
@@ -253,6 +273,7 @@ pub struct ClientRoomState {
     pub cycle: bool,
     pub is_host: bool,
     pub is_ready: bool,
+    pub users: HashMap<i32, UserInfo>,
 }
 
 #[derive(Clone, Debug, BinaryData)]
@@ -270,7 +291,7 @@ pub enum ServerCommand {
     ChangeHost(bool),
 
     CreateRoom(SResult<()>),
-    JoinRoom(SResult<RoomState>),
+    JoinRoom(SResult<(RoomState, Vec<UserInfo>)>),
     LeaveRoom(SResult<()>),
     LockRoom(SResult<()>),
     CycleRoom(SResult<()>),

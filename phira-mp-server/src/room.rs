@@ -97,6 +97,13 @@ impl Room {
             cycle: self.is_cycle(),
             is_host: self.check_host(user).await.is_ok(),
             is_ready: matches!(&*self.state.read().await, InternalRoomState::WaitForReady { started } if started.contains(&user.id)),
+            users: self
+                .users
+                .read()
+                .await
+                .iter()
+                .filter_map(|it| it.upgrade().map(|it| (it.id, it.to_info())))
+                .collect(),
         }
     }
 
@@ -169,8 +176,7 @@ impl Room {
     #[inline]
     pub async fn send_as(&self, user: &User, content: String) {
         self.send(Message::Chat {
-            user_id: user.id,
-            user: user.name.clone(),
+            user: user.id,
             content,
         })
         .await;
@@ -179,10 +185,7 @@ impl Room {
     /// Return: should the room be dropped
     #[must_use]
     pub async fn on_user_leave(&self, user: &User) -> bool {
-        self.send(Message::LeaveRoom {
-            user: user.name.clone(),
-        })
-        .await;
+        self.send(Message::LeaveRoom { user: user.id }).await;
         *user.room.write().await = None;
         self.users
             .write()
@@ -198,10 +201,7 @@ impl Room {
                 let user = users.choose(&mut thread_rng()).unwrap();
                 debug!("selected {} as host", user.id);
                 *self.host.write().await = Arc::downgrade(user);
-                self.send(Message::NewHost {
-                    user: user.name.clone(),
-                })
-                .await;
+                self.send(Message::NewHost { user: user.id }).await;
                 user.try_send(ServerCommand::ChangeHost(true)).await;
             }
         }
@@ -254,10 +254,7 @@ impl Room {
                             users.into_iter().nth(index).unwrap()
                         };
                         *self.host.write().await = Arc::downgrade(&new_host);
-                        self.send(Message::NewHost {
-                            user: new_host.name.clone(),
-                        })
-                        .await;
+                        self.send(Message::NewHost { user: new_host.id }).await;
                         if let Some(old) = host.upgrade() {
                             old.try_send(ServerCommand::ChangeHost(false)).await;
                         }

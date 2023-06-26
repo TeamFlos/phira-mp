@@ -1,10 +1,10 @@
 use anyhow::{Context, Error, Result};
 use phira_mp_common::{
     ClientCommand, ClientRoomState, JudgeEvent, Message, RoomId, RoomState, ServerCommand, Stream,
-    TouchFrame, HEARTBEAT_INTERVAL, HEARTBEAT_TIMEOUT,
+    TouchFrame, UserInfo, HEARTBEAT_INTERVAL, HEARTBEAT_TIMEOUT,
 };
 use std::{
-    collections::VecDeque,
+    collections::{HashMap, VecDeque},
     sync::{
         atomic::{AtomicU8, Ordering},
         Arc,
@@ -33,7 +33,7 @@ struct State {
     cb_authenticate: RCallback<Option<ClientRoomState>>,
     cb_chat: RCallback<()>,
     cb_create_room: RCallback<()>,
-    cb_join_room: RCallback<RoomState>,
+    cb_join_room: RCallback<(RoomState, Vec<UserInfo>)>,
     cb_leave_room: RCallback<()>,
     cb_lock_room: RCallback<()>,
     cb_cycle_room: RCallback<()>,
@@ -134,6 +134,15 @@ impl Client {
             ping_fail_count,
             ping_task_handle,
         })
+    }
+
+    pub fn user_name(&self, id: i32) -> String {
+        self.state
+            .room
+            .blocking_read()
+            .as_ref()
+            .and_then(|it| it.users.get(&id).map(|it| it.name.clone()))
+            .unwrap_or_else(|| "?".to_owned())
     }
 
     pub fn blocking_take_messages(&self) -> Vec<Message> {
@@ -241,13 +250,14 @@ impl Client {
             cycle: false,
             is_host: true,
             is_ready: false,
+            users: HashMap::new(),
         });
         Ok(())
     }
 
     #[inline]
     pub async fn join_room(&self, id: RoomId, monitor: bool) -> Result<()> {
-        let state = self
+        let (state, users) = self
             .rcall(
                 ClientCommand::JoinRoom {
                     id: id.clone(),
@@ -264,6 +274,7 @@ impl Client {
             cycle: false,
             is_host: false,
             is_ready: false,
+            users: users.into_iter().map(|it| (it.id, it)).collect(),
         });
         Ok(())
     }

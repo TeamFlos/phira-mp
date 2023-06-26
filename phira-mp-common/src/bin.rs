@@ -1,3 +1,5 @@
+use std::{collections::HashMap, hash::Hash};
+
 use anyhow::{anyhow, Result};
 use byteorder::{ByteOrder, LittleEndian as LE};
 use chrono::{DateTime, TimeZone, Utc};
@@ -257,6 +259,31 @@ impl<A: BinaryData, B: BinaryData> BinaryData for Result<A, B> {
                 w.write_val(false)?;
                 w.write(err)?;
             }
+        }
+        Ok(())
+    }
+}
+
+impl<T: BinaryData> BinaryData for Vec<T> {
+    fn read_binary(r: &mut BinaryReader<'_>) -> Result<Self> {
+        r.array()
+    }
+
+    fn write_binary(&self, w: &mut BinaryWriter<'_>) -> Result<()> {
+        w.array(self)
+    }
+}
+
+impl<K: BinaryData + Eq + Hash, V: BinaryData> BinaryData for HashMap<K, V> {
+    fn read_binary(r: &mut BinaryReader<'_>) -> Result<Self> {
+        (0..r.uleb()?).map(|_| r.read::<(K, V)>()).collect()
+    }
+
+    fn write_binary(&self, w: &mut BinaryWriter<'_>) -> Result<()> {
+        w.uleb(self.len() as _)?;
+        for (k, v) in self {
+            k.write_binary(w)?;
+            v.write_binary(w)?;
         }
         Ok(())
     }

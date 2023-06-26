@@ -4,7 +4,8 @@ use crate::{
 };
 use anyhow::{anyhow, bail, Result};
 use phira_mp_common::{
-    ClientCommand, Message, RoomState, ServerCommand, Stream, HEARTBEAT_DISCONNECT_TIMEOUT,
+    ClientCommand, Message, RoomState, ServerCommand, Stream, UserInfo,
+    HEARTBEAT_DISCONNECT_TIMEOUT,
 };
 use serde::Deserialize;
 use std::{
@@ -52,6 +53,13 @@ impl User {
             room: RwLock::default(),
 
             dangle_mark: Mutex::default(),
+        }
+    }
+
+    pub fn to_info(&self) -> UserInfo {
+        UserInfo {
+            id: self.id,
+            name: self.name.clone(),
         }
     }
 
@@ -406,10 +414,7 @@ async fn process(user: Arc<User>, cmd: ClientCommand) -> Option<ServerCommand> {
                         bail!(tl!("create-id-occupied"));
                     }
                 }
-                room.send(Message::CreateRoom {
-                    user: user.name.clone(),
-                })
-                .await;
+                room.send(Message::CreateRoom { user: user.id }).await;
                 drop(map_guard);
                 *room_guard = Some(room);
 
@@ -420,7 +425,7 @@ async fn process(user: Arc<User>, cmd: ClientCommand) -> Option<ServerCommand> {
             Some(ServerCommand::CreateRoom(err_to_str(res)))
         }
         ClientCommand::JoinRoom { id, monitor } => {
-            let res: Result<RoomState> = async move {
+            let res: Result<(RoomState, Vec<UserInfo>)> = async move {
                 let mut room_guard = user.room.write().await;
                 if room_guard.is_some() {
                     bail!("already in room");
@@ -445,12 +450,16 @@ async fn process(user: Arc<User>, cmd: ClientCommand) -> Option<ServerCommand> {
                     monitor,
                     "user join room"
                 );
-                room.send(Message::JoinRoom {
-                    user: user.name.clone(),
-                })
-                .await;
+                room.send(Message::JoinRoom { user: user.id }).await;
                 *room_guard = Some(Arc::clone(&room));
-                Ok(room.client_room_state().await)
+                Ok((
+                    room.client_room_state().await,
+                    room.users()
+                        .await
+                        .into_iter()
+                        .map(|it| it.to_info())
+                        .collect(),
+                ))
             }
             .await;
             Some(ServerCommand::JoinRoom(err_to_str(res)))
@@ -532,7 +541,7 @@ async fn process(user: Arc<User>, cmd: ClientCommand) -> Option<ServerCommand> {
                         .await?;
                     debug!("chart is {res:?}");
                     room.send(Message::SelectChart {
-                        user: user.name.clone(),
+                        user: user.id,
                         name: res.name.clone(),
                         id: res.id,
                     })
@@ -556,10 +565,7 @@ async fn process(user: Arc<User>, cmd: ClientCommand) -> Option<ServerCommand> {
                     bail!(tl!("start-no-chart-selected"));
                 }
                 debug!(room = room.id.to_string(), "room wait for ready");
-                room.send(Message::GameStart {
-                    user: user.name.clone(),
-                })
-                .await;
+                room.send(Message::GameStart { user: user.id }).await;
                 if room.users().await.len() == 1 {
                     info!(room = room.id.to_string(), "single game start");
                     room.send(Message::StartPlaying).await;
@@ -587,10 +593,7 @@ async fn process(user: Arc<User>, cmd: ClientCommand) -> Option<ServerCommand> {
                     if !started.insert(user.id) {
                         bail!("already ready");
                     }
-                    room.send(Message::Ready {
-                        user: user.name.clone(),
-                    })
-                    .await;
+                    room.send(Message::Ready { user: user.id }).await;
                     drop(guard);
                     room.check_all_ready().await;
                 }
@@ -608,18 +611,12 @@ async fn process(user: Arc<User>, cmd: ClientCommand) -> Option<ServerCommand> {
                         bail!("not ready");
                     }
                     if room.check_host(&user).await.is_ok() {
-                        room.send(Message::CancelGame {
-                            user: user.name.clone(),
-                        })
-                        .await;
+                        room.send(Message::CancelGame { user: user.id }).await;
                         *guard = InternalRoomState::SelectChart;
                         drop(guard);
                         room.on_state_change().await;
                     } else {
-                        room.send(Message::CancelReady {
-                            user: user.name.clone(),
-                        })
-                        .await;
+                        room.send(Message::CancelReady { user: user.id }).await;
                     }
                 }
                 Ok(())
@@ -644,7 +641,7 @@ async fn process(user: Arc<User>, cmd: ClientCommand) -> Option<ServerCommand> {
                     "user played: {res:?}"
                 );
                 room.send(Message::Played {
-                    user: user.name.clone(),
+                    user: user.id,
                     score: res.score,
                     accuracy: res.accuracy,
                     full_combo: res.full_combo,
@@ -678,10 +675,7 @@ async fn process(user: Arc<User>, cmd: ClientCommand) -> Option<ServerCommand> {
                         bail!("aborted");
                     }
                     drop(guard);
-                    room.send(Message::Abort {
-                        user: user.name.clone(),
-                    })
-                    .await;
+                    room.send(Message::Abort { user: user.id }).await;
                     room.check_all_ready().await;
                 }
                 Ok(())
