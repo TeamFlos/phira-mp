@@ -6,7 +6,7 @@ edition = "2021"
 [dependencies]
 anyhow = { version = "1.0", features = ["backtrace"] }
 byteorder = "1.4.3"
-half = "2.2.1"
+half = "~2.2.1"
 tap = "1.0.1"
 tokio = { version = "1.27.0", features = ["macros", "rt-multi-thread", "rt", "net", "io-util", "time", "sync"] }
 tracing = "0.1.37"
