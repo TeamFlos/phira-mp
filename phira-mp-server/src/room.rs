@@ -162,7 +162,12 @@ impl Room {
     }
 
     pub async fn broadcast(&self, cmd: ServerCommand) {
-        for session in self.users().await {
+        for session in self
+            .users()
+            .await
+            .into_iter()
+            .chain(self.monitors().await.into_iter())
+        {
             session.try_send(cmd.clone()).await;
         }
     }
