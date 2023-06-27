@@ -38,6 +38,9 @@ pub struct User {
     pub session: RwLock<Option<Weak<Session>>>,
     pub room: RwLock<Option<Arc<Room>>>,
 
+    pub monitor: AtomicBool,
+    pub latest_update_time: Mutex<Option<f32>>,
+
     pub dangle_mark: Mutex<Option<Arc<()>>>,
 }
 
@@ -52,6 +55,9 @@ impl User {
             session: RwLock::default(),
             room: RwLock::default(),
 
+            monitor: AtomicBool::default(),
+            latest_update_time: Mutex::default(),
+
             dangle_mark: Mutex::default(),
         }
     }
@@ -60,6 +66,7 @@ impl User {
         UserInfo {
             id: self.id,
             name: self.name.clone(),
+            monitor: self.monitor.load(Ordering::SeqCst),
         }
     }
 
@@ -453,6 +460,7 @@ async fn process(user: Arc<User>, cmd: ClientCommand) -> Option<ServerCommand> {
                     monitor,
                     "user join room"
                 );
+                user.monitor.store(monitor, Ordering::SeqCst);
                 room.broadcast(ServerCommand::OnJoinRoom(user.to_info()))
                     .await;
                 room.send(Message::JoinRoom { user: user.id }).await;

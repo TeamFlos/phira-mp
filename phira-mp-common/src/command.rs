@@ -243,25 +243,11 @@ impl Default for RoomState {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, BinaryData)]
 pub struct UserInfo {
     pub id: i32,
     pub name: String,
-}
-
-impl BinaryData for UserInfo {
-    fn read_binary(r: &mut BinaryReader<'_>) -> Result<Self> {
-        Ok(Self {
-            id: r.read()?,
-            name: r.read()?,
-        })
-    }
-
-    fn write_binary(&self, w: &mut BinaryWriter<'_>) -> Result<()> {
-        w.write_val(self.id)?;
-        w.write(&self.name)?;
-        Ok(())
-    }
+    pub monitor: bool,
 }
 
 #[derive(Debug, BinaryData, Clone)]
