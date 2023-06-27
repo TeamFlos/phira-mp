@@ -8,6 +8,7 @@ edition = "2021"
 [dependencies]
 anyhow = "1.0"
 chrono = "0.4.26"
+dashmap = "5.4.0"
 phira-mp-common = { path = "../phira-mp-common" }
 tokio = "*"
 tracing = "0.1.37"

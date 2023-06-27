@@ -1,10 +1,11 @@
 use anyhow::{Context, Error, Result};
+use dashmap::DashMap;
 use phira_mp_common::{
     ClientCommand, ClientRoomState, JudgeEvent, Message, RoomId, RoomState, ServerCommand, Stream,
     TouchFrame, UserInfo, HEARTBEAT_INTERVAL, HEARTBEAT_TIMEOUT,
 };
 use std::{
-    collections::{HashMap, VecDeque},
+    collections::VecDeque,
     sync::{
         atomic::{AtomicU8, Ordering},
         Arc,
@@ -45,8 +46,8 @@ struct State {
     cb_played: RCallback<()>,
     cb_abort: RCallback<()>,
 
-    touch_frames: Mutex<VecDeque<TouchFrame>>,
-    judges: Mutex<VecDeque<JudgeEvent>>,
+    touch_frames: DashMap<i32, Mutex<Vec<TouchFrame>>>,
+    judges: DashMap<i32, Mutex<Vec<JudgeEvent>>>,
     messages: Mutex<Vec<Message>>,
 }
 
@@ -84,8 +85,8 @@ impl Client {
             cb_played: Callback::default(),
             cb_abort: Callback::default(),
 
-            touch_frames: Mutex::default(),
-            judges: Mutex::default(),
+            touch_frames: DashMap::new(),
+            judges: DashMap::new(),
             messages: Mutex::default(),
         });
         let stream = Arc::new(
@@ -369,12 +370,20 @@ impl Client {
         self.stream.blocking_send(payload)
     }
 
-    pub fn touch_frames(&self) -> MutexGuard<'_, VecDeque<TouchFrame>> {
-        self.state.touch_frames.blocking_lock()
+    pub fn blocking_take_touch_frames(&self, player: i32) -> Vec<TouchFrame> {
+        if let Some(frames) = self.state.touch_frames.get_mut(&player) {
+            frames.blocking_lock().drain(..).collect()
+        } else {
+            Vec::new()
+        }
     }
 
-    pub fn judge_events(&self) -> MutexGuard<'_, VecDeque<JudgeEvent>> {
-        self.state.judges.blocking_lock()
+    pub fn blocking_take_judge_events(&self, player: i32) -> Vec<JudgeEvent> {
+        if let Some(judges) = self.state.judges.get_mut(&player) {
+            judges.blocking_lock().drain(..).collect()
+        } else {
+            Vec::new()
+        }
     }
 }
 
@@ -398,15 +407,23 @@ async fn process(state: Arc<State>, cmd: ServerCommand) {
         ServerCommand::Chat(res) => {
             cb(&state.cb_chat, res).await;
         }
-        ServerCommand::Touches { frames } => {
+        ServerCommand::Touches { player, frames } => {
             state
                 .touch_frames
+                .entry(player)
+                .or_default()
                 .lock()
                 .await
                 .extend(frames.iter().cloned());
         }
-        ServerCommand::Judges { judges } => {
-            state.judges.lock().await.extend(judges.iter().cloned());
+        ServerCommand::Judges { player, judges } => {
+            state
+                .judges
+                .entry(player)
+                .or_default()
+                .lock()
+                .await
+                .extend(judges.iter().cloned());
         }
         ServerCommand::Message(msg) => {
             state.messages.lock().await.push(msg);

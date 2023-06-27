@@ -389,8 +389,13 @@ async fn process(user: Arc<User>, cmd: ClientCommand) -> Option<ServerCommand> {
             get_room!(~ room);
             if room.is_live() {
                 debug!("received {} touch events from {}", frames.len(), user.id);
-                room.broadcast_monitors(ServerCommand::Touches { frames })
+                tokio::spawn(async move {
+                    room.broadcast_monitors(ServerCommand::Touches {
+                        player: user.id,
+                        frames,
+                    })
                     .await;
+                });
             } else {
                 warn!("received touch events in non-live mode");
             }
@@ -400,8 +405,13 @@ async fn process(user: Arc<User>, cmd: ClientCommand) -> Option<ServerCommand> {
             get_room!(~ room);
             if room.is_live() {
                 debug!("received {} judge events from {}", judges.len(), user.id);
-                room.broadcast_monitors(ServerCommand::Judges { judges })
+                tokio::spawn(async move {
+                    room.broadcast_monitors(ServerCommand::Judges {
+                        player: user.id,
+                        judges,
+                    })
                     .await;
+                });
             } else {
                 warn!("received judge events in non-live mode");
             }

@@ -269,8 +269,14 @@ pub enum ServerCommand {
     Authenticate(SResult<(UserInfo, Option<ClientRoomState>)>),
     Chat(SResult<()>),
 
-    Touches { frames: Arc<Vec<TouchFrame>> },
-    Judges { judges: Arc<Vec<JudgeEvent>> },
+    Touches {
+        player: i32,
+        frames: Arc<Vec<TouchFrame>>,
+    },
+    Judges {
+        player: i32,
+        judges: Arc<Vec<JudgeEvent>>,
+    },
 
     Message(Message),
     ChangeState(RoomState),
