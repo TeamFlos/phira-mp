@@ -138,13 +138,20 @@ impl Client {
         })
     }
 
+    pub fn me(&self) -> Option<UserInfo> {
+        self.state.me.blocking_read().clone()
+    }
+
     pub fn user_name(&self, id: i32) -> String {
+        self.user_name_opt(id).unwrap_or_else(|| "?".to_owned())
+    }
+
+    pub fn user_name_opt(&self, id: i32) -> Option<String> {
         self.state
             .room
             .blocking_read()
             .as_ref()
             .and_then(|it| it.users.get(&id).map(|it| it.name.clone()))
-            .unwrap_or_else(|| "?".to_owned())
     }
 
     pub fn blocking_take_messages(&self) -> Vec<Message> {
