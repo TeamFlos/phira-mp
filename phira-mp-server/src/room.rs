@@ -102,6 +102,7 @@ impl Room {
                 .read()
                 .await
                 .iter()
+                .chain(self.monitors.read().await.iter())
                 .filter_map(|it| it.upgrade().map(|it| (it.id, it.to_info())))
                 .collect(),
         }
