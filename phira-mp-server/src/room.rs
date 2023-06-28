@@ -163,6 +163,7 @@ impl Room {
     }
 
     pub async fn broadcast(&self, cmd: ServerCommand) {
+        debug!("broadcast {cmd:?}");
         for session in self
             .users()
             .await
