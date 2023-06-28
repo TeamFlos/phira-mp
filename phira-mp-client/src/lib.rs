@@ -435,6 +435,15 @@ async fn process(state: Arc<State>, cmd: ServerCommand) {
                 .extend(judges.iter().cloned());
         }
         ServerCommand::Message(msg) => {
+            match msg {
+                Message::LockRoom { lock } => {
+                    state.room.write().await.as_mut().unwrap().locked = lock;
+                }
+                Message::CycleRoom { cycle } => {
+                    state.room.write().await.as_mut().unwrap().cycle = cycle;
+                }
+                _ => {}
+            }
             state.messages.lock().await.push(msg);
         }
         ServerCommand::ChangeState(room) => {
@@ -462,11 +471,6 @@ async fn process(state: Arc<State>, cmd: ServerCommand) {
         ServerCommand::LeaveRoom(res) => {
             cb(&state.cb_leave_room, res).await;
         }
-        ServerCommand::OnLeaveRoom(user) => {
-            if let Some(room) = state.room.write().await.as_mut() {
-                room.users.remove(&user.id);
-            }
-        }
         ServerCommand::LockRoom(res) => {
             cb(&state.cb_lock_room, res).await;
         }
@@ -488,15 +492,8 @@ async fn process(state: Arc<State>, cmd: ServerCommand) {
         ServerCommand::Played(res) => {
             cb(&state.cb_played, res).await;
         }
-        ServerCommand::GameEnd => {}
         ServerCommand::Abort(res) => {
             cb(&state.cb_abort, res).await;
-        }
-        ServerCommand::OnRoomLocked(locked) => {
-            state.room.write().await.as_mut().unwrap().locked = locked;
-        }
-        ServerCommand::OnRoomCycle(cycle) => {
-            state.room.write().await.as_mut().unwrap().cycle = cycle;
         }
     }
 }

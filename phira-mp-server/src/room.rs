@@ -217,7 +217,8 @@ impl Room {
 
     pub async fn reset_game_time(&self) {
         for user in self.users().await {
-            user.game_time.store(f32::NEG_INFINITY.to_bits(), Ordering::SeqCst);
+            user.game_time
+                .store(f32::NEG_INFINITY.to_bits(), Ordering::SeqCst);
         }
     }
 
@@ -229,6 +230,7 @@ impl Room {
                     .users()
                     .await
                     .into_iter()
+                    .chain(self.monitors().await.into_iter())
                     .all(|it| started.contains(&it.id))
                 {
                     drop(guard);
@@ -251,7 +253,6 @@ impl Room {
                 {
                     drop(guard);
                     // TODO print results
-                    self.broadcast(ServerCommand::GameEnd).await;
                     self.send(Message::GameEnd).await;
                     *self.state.write().await = InternalRoomState::SelectChart;
                     if self.is_cycle() {

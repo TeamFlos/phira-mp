@@ -9,7 +9,7 @@ use phira_mp_common::{
 };
 use serde::Deserialize;
 use std::{
-    collections::{hash_map::Entry, HashMap, HashSet},
+    collections::{hash_map::Entry, HashSet},
     ops::DerefMut,
     sync::{
         atomic::{AtomicBool, AtomicU32, Ordering},
@@ -523,8 +523,6 @@ async fn process(user: Arc<User>, cmd: ClientCommand) -> Option<ServerCommand> {
                 );
                 room.locked.store(lock, Ordering::SeqCst);
                 room.send(Message::LockRoom { lock }).await;
-                room.broadcast(ServerCommand::OnRoomLocked(room.is_locked()))
-                    .await;
                 Ok(())
             }
             .await;
@@ -542,8 +540,6 @@ async fn process(user: Arc<User>, cmd: ClientCommand) -> Option<ServerCommand> {
                 );
                 room.cycle.store(cycle, Ordering::SeqCst);
                 room.send(Message::CycleRoom { cycle }).await;
-                room.broadcast(ServerCommand::OnRoomCycle(room.is_cycle()))
-                    .await;
                 Ok(())
             }
             .await;
@@ -594,20 +590,11 @@ async fn process(user: Arc<User>, cmd: ClientCommand) -> Option<ServerCommand> {
                 debug!(room = room.id.to_string(), "room wait for ready");
                 room.reset_game_time().await;
                 room.send(Message::GameStart { user: user.id }).await;
-                if room.users().await.len() == 1 {
-                    info!(room = room.id.to_string(), "single game start");
-                    room.send(Message::StartPlaying).await;
-                    *room.state.write().await = InternalRoomState::Playing {
-                        results: HashMap::new(),
-                        aborted: HashSet::new(),
-                    };
-                    room.on_state_change().await;
-                } else {
-                    *room.state.write().await = InternalRoomState::WaitForReady {
-                        started: std::iter::once(user.id).collect::<HashSet<_>>(),
-                    };
-                    room.on_state_change().await;
-                }
+                *room.state.write().await = InternalRoomState::WaitForReady {
+                    started: std::iter::once(user.id).collect::<HashSet<_>>(),
+                };
+                room.on_state_change().await;
+                room.check_all_ready().await;
                 Ok(())
             }
             .await;

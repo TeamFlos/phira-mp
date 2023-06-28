@@ -286,7 +286,6 @@ pub enum ServerCommand {
     JoinRoom(SResult<(RoomState, Vec<UserInfo>)>),
     OnJoinRoom(UserInfo),
     LeaveRoom(SResult<()>),
-    OnLeaveRoom(UserInfo),
     LockRoom(SResult<()>),
     CycleRoom(SResult<()>),
 
@@ -295,9 +294,5 @@ pub enum ServerCommand {
     Ready(SResult<()>),
     CancelReady(SResult<()>),
     Played(SResult<()>),
-    GameEnd,
     Abort(SResult<()>),
-
-    OnRoomLocked(bool),
-    OnRoomCycle(bool),
 }
