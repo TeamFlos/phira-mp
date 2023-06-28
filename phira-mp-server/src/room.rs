@@ -194,10 +194,14 @@ impl Room {
     pub async fn on_user_leave(&self, user: &User) -> bool {
         self.send(Message::LeaveRoom { user: user.id }).await;
         *user.room.write().await = None;
-        self.users
-            .write()
-            .await
-            .retain(|it| it.upgrade().map_or(false, |it| it.id != user.id));
+        (if user.monitor.load(Ordering::SeqCst) {
+            &self.monitors
+        } else {
+            &self.users
+        })
+        .write()
+        .await
+        .retain(|it| it.upgrade().map_or(false, |it| it.id != user.id));
         if self.check_host(user).await.is_ok() {
             info!("host disconnected!");
             let users = self.users().await;
