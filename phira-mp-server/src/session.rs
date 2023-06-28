@@ -89,16 +89,16 @@ impl User {
 
     pub async fn dangle(self: Arc<Self>) {
         warn!(user = self.id, "user dangling");
-        if let Some(room) = self.room.read().await.as_ref() {
+        let guard = self.room.read().await;
+        let room = guard.as_ref().map(Arc::clone);
+        drop(guard);
+        if let Some(room) = room {
             let state = room.state.read().await;
             if matches!(*state, InternalRoomState::Playing { .. }) {
                 warn!(user = self.id, "lost connection on playing, aborting");
-                let room = self.room.read().await.as_ref().map(Arc::clone);
-                if let Some(room) = room {
-                    self.server.users.write().await.remove(&self.id);
-                    if room.on_user_leave(&self).await {
-                        self.server.rooms.write().await.remove(&room.id);
-                    }
+                self.server.users.write().await.remove(&self.id);
+                if room.on_user_leave(&self).await {
+                    self.server.rooms.write().await.remove(&room.id);
                 }
                 return;
             }
@@ -108,7 +108,9 @@ impl User {
         tokio::spawn(async move {
             time::sleep(Duration::from_secs(10)).await;
             if Arc::strong_count(&dangle_mark) > 1 {
-                let room = self.room.read().await.as_ref().map(Arc::clone);
+                let guard = self.room.read().await;
+                let room = guard.as_ref().map(Arc::clone);
+                drop(guard);
                 if let Some(room) = room {
                     self.server.users.write().await.remove(&self.id);
                     if room.on_user_leave(&self).await {
