@@ -192,7 +192,9 @@ impl Room {
     #[must_use]
     pub async fn on_user_leave(&self, user: &User) -> bool {
         self.send(Message::LeaveRoom { user: user.id }).await;
+        dbg!("on leave!");
         *user.room.write().await = None;
+        dbg!("proce!!!!");
         (if user.monitor.load(Ordering::SeqCst) {
             &self.monitors
         } else {
@@ -258,7 +260,9 @@ impl Room {
                     drop(guard);
                     // TODO print results
                     self.send(Message::GameEnd).await;
+                    dbg!(2);
                     *self.state.write().await = InternalRoomState::SelectChart;
+                    dbg!(3);
                     if self.is_cycle() {
                         debug!(room = self.id.to_string(), "cycling");
                         let host = Weak::clone(&*self.host.read().await);
