@@ -12,7 +12,7 @@ use std::{
     collections::{hash_map::Entry, HashMap, HashSet},
     ops::DerefMut,
     sync::{
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicU32, Ordering},
         Arc, Weak,
     },
     time::{Duration, Instant},
@@ -39,7 +39,7 @@ pub struct User {
     pub room: RwLock<Option<Arc<Room>>>,
 
     pub monitor: AtomicBool,
-    pub latest_update_time: Mutex<Option<f32>>,
+    pub game_time: AtomicU32,
 
     pub dangle_mark: Mutex<Option<Arc<()>>>,
 }
@@ -56,7 +56,7 @@ impl User {
             room: RwLock::default(),
 
             monitor: AtomicBool::default(),
-            latest_update_time: Mutex::default(),
+            game_time: AtomicU32::default(),
 
             dangle_mark: Mutex::default(),
         }
@@ -389,6 +389,9 @@ async fn process(user: Arc<User>, cmd: ClientCommand) -> Option<ServerCommand> {
             get_room!(~ room);
             if room.is_live() {
                 debug!("received {} touch events from {}", frames.len(), user.id);
+                if let Some(frame) = frames.last() {
+                    user.game_time.store(frame.time.to_bits(), Ordering::SeqCst);
+                }
                 tokio::spawn(async move {
                     room.broadcast_monitors(ServerCommand::Touches {
                         player: user.id,
@@ -589,6 +592,7 @@ async fn process(user: Arc<User>, cmd: ClientCommand) -> Option<ServerCommand> {
                     bail!(tl!("start-no-chart-selected"));
                 }
                 debug!(room = room.id.to_string(), "room wait for ready");
+                room.reset_game_time().await;
                 room.send(Message::GameStart { user: user.id }).await;
                 if room.users().await.len() == 1 {
                     info!(room = room.id.to_string(), "single game start");

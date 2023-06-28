@@ -215,6 +215,12 @@ impl Room {
         false
     }
 
+    pub async fn reset_game_time(&self) {
+        for user in self.users().await {
+            user.game_time.store(f32::NEG_INFINITY.to_bits(), Ordering::SeqCst);
+        }
+    }
+
     pub async fn check_all_ready(&self) {
         let guard = self.state.read().await;
         match guard.deref() {
@@ -228,6 +234,7 @@ impl Room {
                     drop(guard);
                     info!(room = self.id.to_string(), "game start");
                     self.send(Message::StartPlaying).await;
+                    self.reset_game_time().await;
                     *self.state.write().await = InternalRoomState::Playing {
                         results: HashMap::new(),
                         aborted: HashSet::new(),

@@ -5,7 +5,6 @@ use phira_mp_common::{
     TouchFrame, UserInfo, HEARTBEAT_INTERVAL, HEARTBEAT_TIMEOUT,
 };
 use std::{
-    collections::VecDeque,
     sync::{
         atomic::{AtomicU8, Ordering},
         Arc,
@@ -14,7 +13,7 @@ use std::{
 };
 use tokio::{
     net::TcpStream,
-    sync::{oneshot, Mutex, MutexGuard, Notify, RwLock},
+    sync::{oneshot, Mutex, Notify, RwLock},
     task::JoinHandle,
     time,
 };
@@ -24,6 +23,20 @@ type Callback<T> = Mutex<Option<oneshot::Sender<T>>>;
 type RCallback<T, E = String> = Mutex<Option<oneshot::Sender<Result<T, E>>>>;
 
 pub const TIMEOUT: Duration = Duration::from_secs(7);
+
+pub struct LivePlayer {
+    pub touch_frames: Mutex<Vec<TouchFrame>>,
+    pub judge_events: Mutex<Vec<JudgeEvent>>,
+}
+
+impl LivePlayer {
+    pub fn new() -> Self {
+        Self {
+            touch_frames: Mutex::default(),
+            judge_events: Mutex::default(),
+        }
+    }
+}
 
 struct State {
     delay: Mutex<Option<Duration>>,
@@ -46,9 +59,19 @@ struct State {
     cb_played: RCallback<()>,
     cb_abort: RCallback<()>,
 
-    touch_frames: DashMap<i32, Mutex<Vec<TouchFrame>>>,
-    judges: DashMap<i32, Mutex<Vec<JudgeEvent>>>,
+    live_players: DashMap<i32, Arc<LivePlayer>>,
     messages: Mutex<Vec<Message>>,
+}
+
+impl State {
+    pub fn live_player(&self, player: i32) -> Arc<LivePlayer> {
+        Arc::clone(
+            &self
+                .live_players
+                .entry(player)
+                .or_insert_with(|| Arc::new(LivePlayer::new())),
+        )
+    }
 }
 
 pub struct Client {
@@ -85,8 +108,7 @@ impl Client {
             cb_played: Callback::default(),
             cb_abort: Callback::default(),
 
-            touch_frames: DashMap::new(),
-            judges: DashMap::new(),
+            live_players: DashMap::new(),
             messages: Mutex::default(),
         });
         let stream = Arc::new(
@@ -370,20 +392,9 @@ impl Client {
         self.stream.blocking_send(payload)
     }
 
-    pub fn blocking_take_touch_frames(&self, player: i32) -> Vec<TouchFrame> {
-        if let Some(frames) = self.state.touch_frames.get_mut(&player) {
-            frames.blocking_lock().drain(..).collect()
-        } else {
-            Vec::new()
-        }
-    }
-
-    pub fn blocking_take_judge_events(&self, player: i32) -> Vec<JudgeEvent> {
-        if let Some(judges) = self.state.judges.get_mut(&player) {
-            judges.blocking_lock().drain(..).collect()
-        } else {
-            Vec::new()
-        }
+    #[inline]
+    pub fn live_player(&self, player: i32) -> Arc<LivePlayer> {
+        self.state.live_player(player)
     }
 }
 
@@ -409,18 +420,16 @@ async fn process(state: Arc<State>, cmd: ServerCommand) {
         }
         ServerCommand::Touches { player, frames } => {
             state
+                .live_player(player)
                 .touch_frames
-                .entry(player)
-                .or_default()
                 .lock()
                 .await
                 .extend(frames.iter().cloned());
         }
         ServerCommand::Judges { player, judges } => {
             state
-                .judges
-                .entry(player)
-                .or_default()
+                .live_player(player)
+                .judge_events
                 .lock()
                 .await
                 .extend(judges.iter().cloned());
@@ -429,6 +438,7 @@ async fn process(state: Arc<State>, cmd: ServerCommand) {
             state.messages.lock().await.push(msg);
         }
         ServerCommand::ChangeState(room) => {
+            state.live_players.clear();
             let mut guard = state.room.write().await;
             let state = guard.as_mut().unwrap();
             state.state = room;
