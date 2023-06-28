@@ -43,7 +43,7 @@ pub struct Room {
     pub host: RwLock<Weak<User>>,
     pub state: RwLock<InternalRoomState>,
 
-    live: AtomicBool,
+    pub live: AtomicBool,
     pub locked: AtomicBool,
     pub cycle: AtomicBool,
 

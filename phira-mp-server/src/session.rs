@@ -476,6 +476,9 @@ async fn process(user: Arc<User>, cmd: ClientCommand) -> Option<ServerCommand> {
                     "user join room"
                 );
                 user.monitor.store(monitor, Ordering::SeqCst);
+                if !room.live.fetch_or(true, Ordering::SeqCst) {
+                    info!(room = id.to_string(), "room goes live");
+                }
                 room.broadcast(ServerCommand::OnJoinRoom(user.to_info()))
                     .await;
                 room.send(Message::JoinRoom { user: user.id }).await;

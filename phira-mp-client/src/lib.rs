@@ -465,6 +465,7 @@ async fn process(state: Arc<State>, cmd: ServerCommand) {
         }
         ServerCommand::OnJoinRoom(user) => {
             if let Some(room) = state.room.write().await.as_mut() {
+                room.live |= user.monitor;
                 room.users.insert(user.id, user);
             }
         }
