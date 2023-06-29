@@ -109,7 +109,7 @@ where
                     let mut pos = 0;
                     loop {
                         let byte = read.read_u8().await?;
-                        len |= (byte as u32) << pos;
+                        len |= ((byte & 0x7f) as u32) << pos;
                         pos += 7;
                         if byte & 0x80 == 0 {
                             break;
