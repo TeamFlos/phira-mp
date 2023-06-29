@@ -81,7 +81,7 @@ pub fn init_log(file: &str) -> Result<WorkerGuard> {
 #[tokio::main]
 async fn main() -> Result<()> {
     let _guard = init_log("phira-mp")?;
-    let listener: Server = TcpListener::bind("[::]:7890").await?.into();
+    let listener: Server = TcpListener::bind("[::]:12345").await?.into();
     loop {
         if let Err(err) = listener.accept().await {
             warn!("failed to accept: {err:?}");

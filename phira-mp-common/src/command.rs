@@ -130,7 +130,7 @@ impl<const N: usize> Varchar<N> {
 #[derive(Debug, Clone, BinaryData)]
 pub struct TouchFrame {
     pub time: f32,
-    pub points: Vec<CompactPos>,
+    pub points: Vec<(i8, CompactPos)>,
 }
 
 #[repr(u8)]

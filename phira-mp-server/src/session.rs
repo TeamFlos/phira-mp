@@ -93,10 +93,11 @@ impl User {
         let room = guard.as_ref().map(Arc::clone);
         drop(guard);
         if let Some(room) = room {
-            let state = room.state.read().await;
-            if matches!(*state, InternalRoomState::Playing { .. }) {
+            let guard = room.state.read().await;
+            if matches!(*guard, InternalRoomState::Playing { .. }) {
                 warn!(user = self.id, "lost connection on playing, aborting");
                 self.server.users.write().await.remove(&self.id);
+                drop(guard);
                 if room.on_user_leave(&self).await {
                     self.server.rooms.write().await.remove(&room.id);
                 }

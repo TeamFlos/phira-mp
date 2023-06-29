@@ -192,9 +192,7 @@ impl Room {
     #[must_use]
     pub async fn on_user_leave(&self, user: &User) -> bool {
         self.send(Message::LeaveRoom { user: user.id }).await;
-        dbg!("on leave!");
         *user.room.write().await = None;
-        dbg!("proce!!!!");
         (if user.monitor.load(Ordering::SeqCst) {
             &self.monitors
         } else {

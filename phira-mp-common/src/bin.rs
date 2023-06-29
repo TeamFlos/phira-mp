@@ -105,6 +105,17 @@ impl BinaryData for () {
     }
 }
 
+impl BinaryData for i8 {
+    fn read_binary(r: &mut BinaryReader<'_>) -> Result<Self> {
+        Ok(r.byte()? as i8)
+    }
+
+    fn write_binary(&self, w: &mut BinaryWriter<'_>) -> Result<()> {
+        w.0.push(*self as u8);
+        Ok(())
+    }
+}
+
 impl BinaryData for u8 {
     fn read_binary(r: &mut BinaryReader<'_>) -> Result<Self> {
         r.byte()
