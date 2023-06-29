@@ -4,7 +4,7 @@ use crate::{
 };
 use anyhow::{anyhow, bail, Result};
 use phira_mp_common::{
-    ClientCommand, JoinRoomResponse, Message, RoomState, ServerCommand, Stream, UserInfo,
+    ClientCommand, JoinRoomResponse, Message, ServerCommand, Stream, UserInfo,
     HEARTBEAT_DISCONNECT_TIMEOUT,
 };
 use serde::Deserialize;

@@ -43,7 +43,7 @@ pub struct Stream<S, R> {
 impl<S, R> Stream<S, R>
 where
     S: BinaryData + std::fmt::Debug + Send + Sync + 'static,
-    R: BinaryData + Send + 'static,
+    R: BinaryData + std::fmt::Debug + Send + 'static,
 {
     pub async fn new<F>(
         version: Option<u8>,
@@ -71,7 +71,7 @@ where
                 while let Some(payload) = send_rx.recv().await {
                     buffer.clear();
                     encode_packet(&payload, &mut buffer);
-                    trace!("sending {} bytes", buffer.len());
+                    trace!("sending {} bytes ({payload:?}): {buffer:?}", buffer.len());
 
                     let mut x = buffer.len() as u32;
                     let mut n = 0;
@@ -125,7 +125,7 @@ where
 
                     buffer.resize(len, 0);
                     read.read_exact(&mut buffer).await?;
-                    trace!("received {} bytes", buffer.len());
+                    trace!("received {} bytes: {buffer:?}", buffer.len());
 
                     let payload: R = match decode_packet(&buffer) {
                         Ok(val) => val,
@@ -134,6 +134,7 @@ where
                             break;
                         }
                     };
+                    trace!("decodes to {payload:?}");
                     handler(Arc::clone(&send_tx), payload).await;
                 }
                 Ok(())
