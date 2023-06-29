@@ -262,6 +262,13 @@ pub struct ClientRoomState {
     pub users: HashMap<i32, UserInfo>,
 }
 
+#[derive(Debug, BinaryData, Clone)]
+pub struct JoinRoomResponse {
+    pub state: RoomState,
+    pub users: Vec<UserInfo>,
+    pub live: bool,
+}
+
 #[derive(Clone, Debug, BinaryData)]
 pub enum ServerCommand {
     Pong,
@@ -283,7 +290,7 @@ pub enum ServerCommand {
     ChangeHost(bool),
 
     CreateRoom(SResult<()>),
-    JoinRoom(SResult<(RoomState, Vec<UserInfo>)>),
+    JoinRoom(SResult<JoinRoomResponse>),
     OnJoinRoom(UserInfo),
     LeaveRoom(SResult<()>),
     LockRoom(SResult<()>),

@@ -4,7 +4,7 @@ use crate::{
 };
 use anyhow::{anyhow, bail, Result};
 use phira_mp_common::{
-    ClientCommand, Message, RoomState, ServerCommand, Stream, UserInfo,
+    ClientCommand, JoinRoomResponse, Message, RoomState, ServerCommand, Stream, UserInfo,
     HEARTBEAT_DISCONNECT_TIMEOUT,
 };
 use serde::Deserialize;
@@ -451,7 +451,7 @@ async fn process(user: Arc<User>, cmd: ClientCommand) -> Option<ServerCommand> {
             Some(ServerCommand::CreateRoom(err_to_str(res)))
         }
         ClientCommand::JoinRoom { id, monitor } => {
-            let res: Result<(RoomState, Vec<UserInfo>)> = async move {
+            let res: Result<JoinRoomResponse> = async move {
                 let mut room_guard = user.room.write().await;
                 if room_guard.is_some() {
                     bail!("already in room");
@@ -484,15 +484,17 @@ async fn process(user: Arc<User>, cmd: ClientCommand) -> Option<ServerCommand> {
                     .await;
                 room.send(Message::JoinRoom { user: user.id }).await;
                 *room_guard = Some(Arc::clone(&room));
-                Ok((
-                    room.client_room_state().await,
-                    room.users()
+                Ok(JoinRoomResponse {
+                    state: room.client_room_state().await,
+                    users: room
+                        .users()
                         .await
                         .into_iter()
                         .chain(room.monitors().await.into_iter())
                         .map(|it| it.to_info())
                         .collect(),
-                ))
+                    live: room.is_live(),
+                })
             }
             .await;
             Some(ServerCommand::JoinRoom(err_to_str(res)))

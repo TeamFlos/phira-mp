@@ -1,8 +1,8 @@
 use anyhow::{Context, Error, Result};
 use dashmap::DashMap;
 use phira_mp_common::{
-    ClientCommand, ClientRoomState, JudgeEvent, Message, RoomId, RoomState, ServerCommand, Stream,
-    TouchFrame, UserInfo, HEARTBEAT_INTERVAL, HEARTBEAT_TIMEOUT,
+    ClientCommand, ClientRoomState, JoinRoomResponse, JudgeEvent, Message, RoomId, RoomState,
+    ServerCommand, Stream, TouchFrame, UserInfo, HEARTBEAT_INTERVAL, HEARTBEAT_TIMEOUT,
 };
 use std::{
     sync::{
@@ -48,7 +48,7 @@ struct State {
     cb_authenticate: RCallback<(UserInfo, Option<ClientRoomState>)>,
     cb_chat: RCallback<()>,
     cb_create_room: RCallback<()>,
-    cb_join_room: RCallback<(RoomState, Vec<UserInfo>)>,
+    cb_join_room: RCallback<JoinRoomResponse>,
     cb_leave_room: RCallback<()>,
     cb_lock_room: RCallback<()>,
     cb_cycle_room: RCallback<()>,
@@ -291,7 +291,7 @@ impl Client {
 
     #[inline]
     pub async fn join_room(&self, id: RoomId, monitor: bool) -> Result<()> {
-        let (state, users) = self
+        let resp = self
             .rcall(
                 ClientCommand::JoinRoom {
                     id: id.clone(),
@@ -302,13 +302,13 @@ impl Client {
             .await?;
         *self.state.room.write().await = Some(ClientRoomState {
             id,
-            state,
-            live: false,
+            state: resp.state,
+            live: resp.live,
             locked: false,
             cycle: false,
             is_host: false,
             is_ready: false,
-            users: users.into_iter().map(|it| (it.id, it)).collect(),
+            users: resp.users.into_iter().map(|it| (it.id, it)).collect(),
         });
         Ok(())
     }
