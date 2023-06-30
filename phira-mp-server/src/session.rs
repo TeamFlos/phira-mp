@@ -482,7 +482,11 @@ async fn process(user: Arc<User>, cmd: ClientCommand) -> Option<ServerCommand> {
                 }
                 room.broadcast(ServerCommand::OnJoinRoom(user.to_info()))
                     .await;
-                room.send(Message::JoinRoom { user: user.id }).await;
+                room.send(Message::JoinRoom {
+                    user: user.id,
+                    name: user.name.clone(),
+                })
+                .await;
                 *room_guard = Some(Arc::clone(&room));
                 Ok(JoinRoomResponse {
                     state: room.client_room_state().await,

@@ -191,7 +191,11 @@ impl Room {
     /// Return: should the room be dropped
     #[must_use]
     pub async fn on_user_leave(&self, user: &User) -> bool {
-        self.send(Message::LeaveRoom { user: user.id }).await;
+        self.send(Message::LeaveRoom {
+            user: user.id,
+            name: user.name.clone(),
+        })
+        .await;
         *user.room.write().await = None;
         (if user.monitor.load(Ordering::SeqCst) {
             &self.monitors

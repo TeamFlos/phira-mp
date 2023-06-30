@@ -442,7 +442,7 @@ async fn process(state: Arc<State>, cmd: ServerCommand) {
                 Message::CycleRoom { cycle } => {
                     state.room.write().await.as_mut().unwrap().cycle = cycle;
                 }
-                Message::LeaveRoom { user } => {
+                Message::LeaveRoom { user, .. } => {
                     state
                         .room
                         .write()

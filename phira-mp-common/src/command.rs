@@ -187,9 +187,11 @@ pub enum Message {
     },
     JoinRoom {
         user: i32,
+        name: String,
     },
     LeaveRoom {
         user: i32,
+        name: String,
     },
     NewHost {
         user: i32,
