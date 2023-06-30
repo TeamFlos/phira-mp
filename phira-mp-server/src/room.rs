@@ -258,9 +258,9 @@ impl Room {
                     drop(guard);
                     // TODO print results
                     self.send(Message::GameEnd).await;
-                    dbg!(2);
+                    // dbg!(2);
                     *self.state.write().await = InternalRoomState::SelectChart;
-                    dbg!(3);
+                    // dbg!(3);
                     if self.is_cycle() {
                         debug!(room = self.id.to_string(), "cycling");
                         let host = Weak::clone(&*self.host.read().await);
