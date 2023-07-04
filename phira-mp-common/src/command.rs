@@ -79,11 +79,12 @@ impl<const N: usize> BinaryData for Varchar<N> {
 pub struct RoomId(Varchar<20>);
 impl RoomId {
     fn validate(self) -> Result<Self> {
-        if !self
-            .0
-             .0
-            .chars()
-            .all(|it| it == '-' || it == '_' || it.is_ascii_alphanumeric())
+        if self.0 .0.is_empty()
+            || !self
+                .0
+                 .0
+                .chars()
+                .all(|it| it == '-' || it == '_' || it.is_ascii_alphanumeric())
         {
             bail!("invalid room id");
         }
