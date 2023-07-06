@@ -85,8 +85,8 @@ async fn main() -> Result<()> {
 
     let port = 12345;
     let addrs: &[SocketAddr] = &[
-        SocketAddr::new(Ipv4Addr::LOCALHOST.into(), port),
-        SocketAddr::new(Ipv6Addr::LOCALHOST.into(), port),
+        SocketAddr::new(Ipv4Addr::UNSPECIFIED.into(), port),
+        SocketAddr::new(Ipv6Addr::UNSPECIFIED.into(), port),
     ];
     let listener: Server = TcpListener::bind(addrs).await?.into();
     loop {
