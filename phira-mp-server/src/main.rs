@@ -10,15 +10,16 @@ mod session;
 pub use session::*;
 
 use anyhow::Result;
-use tracing::warn;
 use std::{
     collections::{
         hash_map::{Entry, VacantEntry},
         HashMap,
     },
+    net::{Ipv4Addr, Ipv6Addr, SocketAddr},
     path::Path,
 };
 use tokio::{net::TcpListener, sync::RwLock};
+use tracing::warn;
 use tracing_appender::non_blocking::WorkerGuard;
 use uuid::Uuid;
 
@@ -81,7 +82,13 @@ pub fn init_log(file: &str) -> Result<WorkerGuard> {
 #[tokio::main]
 async fn main() -> Result<()> {
     let _guard = init_log("phira-mp")?;
-    let listener: Server = TcpListener::bind("[::]:12345").await?.into();
+
+    let port = 12345;
+    let addrs: &[SocketAddr] = &[
+        SocketAddr::new(Ipv4Addr::LOCALHOST.into(), port),
+        SocketAddr::new(Ipv6Addr::LOCALHOST.into(), port),
+    ];
+    let listener: Server = TcpListener::bind(addrs).await?.into();
     loop {
         if let Err(err) = listener.accept().await {
             warn!("failed to accept: {err:?}");
