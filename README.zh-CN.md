@@ -8,7 +8,8 @@
 - Rust 1.70 或更高版本
 
 ## 服务端安装
-
+### 对于 `Linux` 用户
+#### 依赖
 首先，如果尚未安装 Rust，请安装。 您可以按照 https://www.rust-lang.org/tools/install 中的说明进行操作
 
 对于 Ubuntu 或 Debian 用户，如果尚未安装“curl”，请使用以下命令进行安装：
@@ -28,13 +29,13 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 ```shell
 cargo build --release -p phira-mp-server
 ```
-## 运行服务端
+#### 运行服务端
 您可以使用以下命令运行该应用程序：
 ```shell
 RUST_LOG=info target/release/phira-mp-server
 ```
 
-## 故障排除
+#### 故障排除
 如果遇到与 openssl 相关的问题，请确保安装了 libssl-dev（适用于 Ubuntu 或 Debian）或 openssl-devel（适用于 Fedora 或 CentOS）。 如果问题仍然存在，您可以为编译过程设置 OPENSSL_DIR 环境变量。
 
 如果您在 Linux 上进行编译并以 Linux 为目标，并收到有关缺少 pkg-config 的消息，则可能需要安装它：
@@ -48,10 +49,13 @@ sudo dnf install pkg-config openssl-devel
 ```
 其他问题请参考具体错误信息并相应调整您的环境。
 
-## 监控
+#### 监控
 您可以检查正在运行的进程及其正在侦听的端口：
 ```shell
 ps -aux | grep phira-mp-server
 netstat -tuln | grep 12345
 ```
 ![image](https://github.com/okatu-loli/phira-mp/assets/53247097/b533aee7-03c2-4920-aae9-a0b9e70ed576)
+
+## 对于 Windows 或 Android 用户
+查看: [https://docs.qq.com/doc/DU1dlekx3U096REdD](https://docs.qq.com/doc/DU1dlekx3U096REdD)
