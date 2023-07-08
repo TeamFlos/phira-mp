@@ -53,3 +53,4 @@ You can check the running process and the port it's listening on with:
 ps -aux | grep phira-mp-server
 netstat -tuln | grep 12345
 ```
+![image](https://github.com/okatu-loli/phira-mp/assets/53247097/b533aee7-03c2-4920-aae9-a0b9e70ed576)
