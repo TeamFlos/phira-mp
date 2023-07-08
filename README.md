@@ -42,10 +42,10 @@ If you're compiling on Linux and targeting Linux and get a message about pkg-con
 
 ```shell
 # For Ubuntu or Debian
-sudo apt install pkg-config
+sudo apt install pkg-config libssl-dev 
 
 # For Fedora or CentOS
-sudo dnf install pkg-config
+sudo dnf install pkg-config openssl-devel
 ```
 For other issues, please refer to the specific error messages and adjust your environment accordingly.
 
