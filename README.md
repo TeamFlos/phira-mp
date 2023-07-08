@@ -52,7 +52,7 @@ sudo dnf install pkg-config openssl-devel
 ```
 For other issues, please refer to the specific error messages and adjust your environment accordingly.
 
-## Monitoring
+#### Monitoring
 You can check the running process and the port it's listening on with:
 ```shell
 ps -aux | grep phira-mp-server
