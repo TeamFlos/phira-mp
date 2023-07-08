@@ -10,6 +10,9 @@
 
 ## Server Installation
 
+### For Linux
+
+#### Dependent
 First, install Rust if you haven't already. You can do so by following the instructions at https://www.rust-lang.org/tools/install
 
 For Ubuntu or Debian users, use the following command to install `curl` if it isn't installed yet:
@@ -29,13 +32,13 @@ Then, build the project:
 ```shell
 cargo build --release -p phira-mp-server
 ```
-## unning the Server
+#### unning the Server
 You can run the application with the following command:
 ```shell
 RUST_LOG=info target/release/phira-mp-server
 ```
 
-## Troubleshooting
+#### Troubleshooting
 If you encounter issues related to openssl, ensure that you have libssl-dev (for Ubuntu or Debian) or openssl-devel (for Fedora or CentOS) installed. If the issue persists, you can set the OPENSSL_DIR environment variable for the compilation process.
 
 If you're compiling on Linux and targeting Linux and get a message about pkg-config being missing, you may need to install it:
@@ -56,3 +59,7 @@ ps -aux | grep phira-mp-server
 netstat -tuln | grep 12345
 ```
 ![image](https://github.com/okatu-loli/phira-mp/assets/53247097/b533aee7-03c2-4920-aae9-a0b9e70ed576)
+
+## For Windows or Android
+View: [https://docs.qq.com/doc/DU1dlekx3U096REdD](https://docs.qq.com/doc/DU1dlekx3U096REdD)
+
