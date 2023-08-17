@@ -92,6 +92,7 @@ async fn main() -> Result<()> {
     let _guard = init_log("phira-mp")?;
 
     let port = get_port();
+
     let addrs: &[SocketAddr] = &[
         SocketAddr::new(Ipv4Addr::UNSPECIFIED.into(), port),
         SocketAddr::new(Ipv6Addr::UNSPECIFIED.into(), port),

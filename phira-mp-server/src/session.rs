@@ -27,7 +27,7 @@ use tracing::{debug, debug_span, error, info, trace, warn, Instrument};
 use uuid::Uuid;
 
 const HOST: &str = "https://api.phira.cn";
-const MONITORS: &[i32] = &[2];
+const MONITORS: &[i32] = &[2, 143245];
 
 pub struct User {
     pub id: i32,
@@ -477,7 +477,7 @@ async fn process(user: Arc<User>, cmd: ClientCommand) -> Option<ServerCommand> {
                     "user join room"
                 );
                 user.monitor.store(monitor, Ordering::SeqCst);
-                if !room.live.fetch_or(true, Ordering::SeqCst) {
+                if monitor && !room.live.fetch_or(true, Ordering::SeqCst) {
                     info!(room = id.to_string(), "room goes live");
                 }
                 room.broadcast(ServerCommand::OnJoinRoom(user.to_info()))
