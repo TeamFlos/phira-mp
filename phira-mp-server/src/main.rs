@@ -83,7 +83,7 @@ pub fn init_log(file: &str) -> Result<WorkerGuard> {
 async fn main() -> Result<()> {
     let _guard = init_log("phira-mp")?;
 
-    let port = 12345;
+    let port = 12346;
     let addrs: &[SocketAddr] = &[
         SocketAddr::new(Ipv4Addr::UNSPECIFIED.into(), port),
         SocketAddr::new(Ipv6Addr::UNSPECIFIED.into(), port),
