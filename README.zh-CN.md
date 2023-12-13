@@ -35,6 +35,11 @@ cargo build --release -p phira-mp-server
 RUST_LOG=info target/release/phira-mp-server
 ```
 
+也可以通过参数指定端口：
+```shell
+RUST_LOG=info target/release/phira-mp-server --port 8080
+```
+
 #### 故障排除
 如果遇到与 openssl 相关的问题，请确保安装了 libssl-dev（适用于 Ubuntu 或 Debian）或 openssl-devel（适用于 Fedora 或 CentOS）。 如果问题仍然存在，您可以为编译过程设置 OPENSSL_DIR 环境变量。
 
