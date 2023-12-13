@@ -19,9 +19,10 @@ use std::{
     path::Path,
 };
 use tokio::{net::TcpListener, sync::RwLock};
-use tracing::warn;
+use tracing::{info, warn};
 use tracing_appender::non_blocking::WorkerGuard;
 use uuid::Uuid;
+use std::env;
 
 pub type SafeMap<K, V> = RwLock<HashMap<K, V>>;
 pub type IdMap<V> = SafeMap<Uuid, V>;
@@ -79,16 +80,26 @@ pub fn init_log(file: &str) -> Result<WorkerGuard> {
     Ok(guard)
 }
 
+fn get_port() -> u16 {
+    match env::var_os("PHIRA_PORT") {
+        Some(v) => v.into_string().unwrap().parse::<u16>().unwrap(),
+        None => 23333
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let _guard = init_log("phira-mp")?;
 
-    let port = 12346;
+    let port = get_port();
+
     let addrs: &[SocketAddr] = &[
         SocketAddr::new(Ipv4Addr::UNSPECIFIED.into(), port),
         SocketAddr::new(Ipv6Addr::UNSPECIFIED.into(), port),
     ];
+
     let listener: Server = TcpListener::bind(addrs).await?.into();
+    info!("Server running on port {}", port);
     loop {
         if let Err(err) = listener.accept().await {
             warn!("failed to accept: {err:?}");
