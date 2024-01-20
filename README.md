@@ -58,7 +58,7 @@ You can check the running process and the port it's listening on with:
 ps -aux | grep phira-mp-server
 netstat -tuln | grep 12346
 ```
-![result](https://i.imgur.com/t68SBv6.png)
+![result](https://i.imgur.com/NXC54ZZ.png)
 
 ## For Windows or Android
 View: [https://docs.qq.com/doc/DU1dlekx3U096REdD](https://docs.qq.com/doc/DU1dlekx3U096REdD)

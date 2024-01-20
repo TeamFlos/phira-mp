@@ -55,7 +55,7 @@ sudo dnf install pkg-config openssl-devel
 ps -aux | grep phira-mp-server
 netstat -tuln | grep 12346
 ```
-![result](https://i.imgur.com/t68SBv6.png)
+![result](https://i.imgur.com/NXC54ZZ.png)
 
 ## 对于 Windows 或 Android 用户
 查看: [https://docs.qq.com/doc/DU1dlekx3U096REdD](https://docs.qq.com/doc/DU1dlekx3U096REdD)
