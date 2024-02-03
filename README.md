@@ -58,7 +58,8 @@ You can check the running process and the port it's listening on with:
 ps -aux | grep phira-mp-server
 netstat -tuln | grep 12346
 ```
-![result](https://i.imgur.com/NXC54ZZ.png)
+![result](https://github.com/YuevUwU/phira-mp/assets/96368079/bb25398b-75af-47c3-8ba4-e609be26177b)
+
 
 ## For Windows or Android
 View: [https://docs.qq.com/doc/DU1dlekx3U096REdD](https://docs.qq.com/doc/DU1dlekx3U096REdD)
