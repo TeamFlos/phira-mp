@@ -10,6 +10,7 @@ mod session;
 pub use session::*;
 
 use anyhow::Result;
+use clap::Parser;
 use std::{
     collections::{
         hash_map::{Entry, VacantEntry},
@@ -29,6 +30,7 @@ pub type IdMap<V> = SafeMap<Uuid, V>;
 fn vacant_entry<V>(map: &mut HashMap<Uuid, V>) -> VacantEntry<'_, Uuid, V> {
     let mut id = Uuid::new_v4();
     while map.contains_key(&id) {
+        // 修正此处的语法错误
         id = Uuid::new_v4();
     }
     match map.entry(id) {
@@ -79,16 +81,37 @@ pub fn init_log(file: &str) -> Result<WorkerGuard> {
     Ok(guard)
 }
 
+/// Command line arguments
+#[derive(Parser, Debug)]
+#[clap(author, version, about, long_about = None)]
+struct Args {
+    #[clap(
+        short,
+        long,
+        default_value_t = 12346,
+        help = "Specify the port number to use for the server"
+    )]
+    port: u16,
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let _guard = init_log("phira-mp")?;
 
-    let port = 12346;
+    let args = Args::parse();
+    let port = args.port;
     let addrs: &[SocketAddr] = &[
         SocketAddr::new(Ipv4Addr::UNSPECIFIED.into(), port),
         SocketAddr::new(Ipv6Addr::UNSPECIFIED.into(), port),
     ];
+
+    // 打印本地地址和端口
+    for addr in addrs {
+        println!("Local Address: {}", addr);
+    }
+
     let listener: Server = TcpListener::bind(addrs).await?.into();
+
     loop {
         if let Err(err) = listener.accept().await {
             warn!("failed to accept: {err:?}");

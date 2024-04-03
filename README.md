@@ -38,6 +38,11 @@ You can run the application with the following command:
 RUST_LOG=info target/release/phira-mp-server
 ```
 
+The port can also be specified via parameters:
+```shell
+RUST_LOG=info target/release/phira-mp-server --port 8080
+```
+
 #### Troubleshooting
 If you encounter issues related to openssl, ensure that you have libssl-dev (for Ubuntu or Debian) or openssl-devel (for Fedora or CentOS) installed. If the issue persists, you can set the OPENSSL_DIR environment variable for the compilation process.
 
