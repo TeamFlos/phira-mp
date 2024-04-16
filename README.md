@@ -64,7 +64,7 @@ ENTRYPOINT ["/root/phira-mp/target/release/phira-mp-server", "--port", "<preferr
 2. Build the image
 `docker build --tag phira-mp .`
 
-3. Run the image
+3. Run the container
 `docker run -it --name phira-mp -p <prefered-port>:<preferred-port> --restart=unless-stopped phira-mp`
 
 #### Troubleshooting
