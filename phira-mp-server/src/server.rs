@@ -53,7 +53,7 @@ pub struct Server {
 impl From<TcpListener> for Server {
     fn from(listener: TcpListener) -> Self {
         let (lost_con_tx, mut lost_con_rx) = mpsc::channel(16);
-        let config: ServerConfig = serde_yaml::from_str(&fs::read_to_string("server_config.yml").unwrap()).unwrap();
+        let config: ServerConfig = serde_yaml::from_str(&fs::read_to_string("server_config.yml").unwrap_or("monitors : [2,]".to_string())).unwrap();
         let state = Arc::new(ServerState {
             config,
             sessions: IdMap::default(),
