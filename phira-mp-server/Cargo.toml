@@ -24,3 +24,4 @@ tracing-log = "0.1.3"
 tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
 unic-langid = { version = "0.9.1", features = ["macros"] }
 clap = { version = "4.4.11", features = ["derive"] }
+time = "0.3.36"
