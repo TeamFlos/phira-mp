@@ -40,6 +40,30 @@ RUST_LOG=info target/release/phira-mp-server
 RUST_LOG=info target/release/phira-mp-server --port 8080
 ```
 
+### For docker
+
+1. 创建 Dockerfile
+```
+FROM ubuntu:22.04
+
+RUN apt-get update && apt-get -y upgrade && apt-get install -y curl git build-essential pkg-config openssl libssl-dev
+
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+ENV PATH="/root/.cargo/bin:${PATH}"
+WORKDIR /root/
+RUN git clone https://github.com/TeamFlos/phira-mp
+WORKDIR /root/phira-mp
+RUN cargo build --release -p phira-mp-server
+
+ENTRYPOINT ["/root/phira-mp/target/release/phira-mp-server", "--port", "<preferred-port>"]
+```
+
+2. 构建镜像
+`docker build --tag phira-mp .`
+
+3. 运行容器
+`docker run -it --name phira-mp -p <prefered-port>:<preferred-port> --restart=unless-stopped phira-mp`
+
 #### 故障排除
 如果遇到与 openssl 相关的问题，请确保安装了 libssl-dev（适用于 Ubuntu 或 Debian）或 openssl-devel（适用于 Fedora 或 CentOS）。 如果问题仍然存在，您可以为编译过程设置 OPENSSL_DIR 环境变量。
 
