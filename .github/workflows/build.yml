@@ -23,31 +23,36 @@ jobs:
             arch: amd64
           - os: macos-latest
             arch: amd64
-          - os: freebsd-12
-            arch: amd64  # FreeBSD 构建
 
+  freebsd_build:
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Clone phira-mp repository
-        run: git clone https://github.com/TeamFlos/phira-mp
-
-      - name: Build phira-mp
-        run: |
-          cd phira-mp
-          cargo build --release -p phira-mp-server
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v2
+      - name: Build phira-mp on FreeBSD
+        uses: vmactions/freebsd-vm@v1
         with:
-          name: phira-mp-server
-          path: phira-mp/target/release/phira-mp-server
+          usesh: true
+          release: 13.2
+          prepare: |
+            pkg install -y node wget curl git rust
+          run: |
+            git clone https://github.com/TeamFlos/phira-mp
+            cd phira-mp
+            cargo build --release -p phira-mp-server
 
   create_release:
-    needs: build
+    needs: [build, freebsd_build]
     runs-on: ubuntu-latest
     steps:
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: phira-mp-server
+          path: |
+            phira-mp/target/release/phira-mp-server
+
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
