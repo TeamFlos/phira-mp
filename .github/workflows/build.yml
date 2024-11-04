@@ -28,7 +28,7 @@ jobs:
         cd phira-mp
         cargo build --release -p phira-mp-server
     - name: Upload Artifact
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v3
       with:
         name: phira-mp-server-${{ matrix.os }}-${{ matrix.target }}
         path: phira-mp/target/release/phira-mp-server
@@ -39,7 +39,7 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - name: Download Artifacts
-      uses: actions/download-artifact@v2
+      uses: actions/download-artifact@v3
     - name: Create Release
       id: create_release
       uses: actions/create-release@v1
