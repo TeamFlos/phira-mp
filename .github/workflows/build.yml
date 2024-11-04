@@ -53,12 +53,21 @@ jobs:
     needs: [build, freebsd_build]
     runs-on: ubuntu-latest
     steps:
-      - name: Upload artifacts
+      - name: Upload artifacts from Ubuntu build
+        if: success() && github.ref == 'refs/heads/main'  # Optional: Adjust condition as needed
         uses: actions/upload-artifact@v3
         with:
           name: phira-mp-server
           path: |
             phira-mp/target/release/phira-mp-server
+
+      - name: Upload artifacts from FreeBSD build
+        if: success() && github.ref == 'refs/heads/main'  # Optional: Adjust condition as needed
+        uses: actions/upload-artifact@v3
+        with:
+          name: phira-mp-server-freebsd
+          path: |
+            phira-mp/target/release/phira-mp-server  # Adjust if necessary based on output path
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
@@ -66,5 +75,6 @@ jobs:
           tag_name: ${{ github.event.inputs.tag }}
           files: |
             phira-mp/target/release/phira-mp-server
+            phira-mp/target/release/phira-mp-server-freebsd  # Include if the file exists from FreeBSD build
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
