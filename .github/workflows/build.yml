@@ -48,7 +48,14 @@ jobs:
       - name: Build
         run: |
           cargo build --release -p phira-mp-server
-          mv target/release/phira-mp-server $BUILD_NAME
+
+      - name: Move Build Artifact
+        run: |
+          if [ "${{ matrix.os }}" == "windows-latest" ]; then
+            Move-Item -Path target\release\phira-mp-server.exe -Destination $BUILD_NAME
+          else
+            mv target/release/phira-mp-server $BUILD_NAME
+          fi
 
       - name: Upload Build Artifact
         uses: actions/upload-artifact@v4
