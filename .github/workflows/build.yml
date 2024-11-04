@@ -1,0 +1,58 @@
+name: Build and Release phira-mp
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag (e.g., v1.0.0)'
+        required: true
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        arch: [amd64, arm64]  # 适用于 Linux
+        include:
+          - os: ubuntu-latest
+            arch: amd64
+          - os: ubuntu-latest
+            arch: arm64
+          - os: windows-latest
+            arch: amd64
+          - os: macos-latest
+            arch: amd64
+          - os: freebsd-12
+            arch: amd64  # FreeBSD 构建
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Clone phira-mp repository
+        run: git clone https://github.com/TeamFlos/phira-mp
+
+      - name: Build phira-mp
+        run: |
+          cd phira-mp
+          cargo build --release -p phira-mp-server
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: phira-mp-server
+          path: phira-mp/target/release/phira-mp-server
+
+  create_release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.event.inputs.tag }}
+          files: |
+            phira-mp/target/release/phira-mp-server
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
