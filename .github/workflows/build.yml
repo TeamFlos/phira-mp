@@ -36,7 +36,7 @@ jobs:
       - name: Build for Linux amd64
         run: |
           cd phira-mp
-          cross build --release --target x86_64-unknown-linux-gnu -p phira-mp-server
+          cargo build --release -p phira-mp-server
 
       - name: Build for FreeBSD amd64
         run: |
@@ -58,7 +58,7 @@ jobs:
         uses: actions/upload-release-asset@v1
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: phira-mp/target/x86_64-unknown-linux-gnu/release/phira-mp-server
+          asset_path: phira-mp/target/release/phira-mp-server
           asset_name: phira-mp-server-linux-amd64
           asset_content_type: application/octet-stream
 
