@@ -22,14 +22,32 @@ jobs:
           toolchain: stable
           override: true
 
-      - name: Build the project
+      - name: Install cross
         run: |
-          cargo build --release -p phira-mp-server
+          cargo install cross
 
-      - name: Upload Release Asset
+      - name: Build the project for multiple platforms
+        run: |
+          cross build --release --target x86_64-unknown-linux-gnu
+          cross build --release --target x86_64-unknown-linux-musl
+          cross build --release --target x86_64-unknown-freebsd
+
+      - name: Create Release
+        id: create_release
         uses: softprops/action-gh-release@v1
         with:
-          tag: ${{ github.event.inputs.release_tag }}
-          files: target/release/phira-mp-server
+          tag_name: ${{ github.event.inputs.release_tag }}
+          name: Release ${{ github.event.inputs.release_tag }}
+          files: |
+            target/x86_64-unknown-linux-gnu/release/phira-mp-server
+            target/x86_64-unknown-linux-musl/release/phira-mp-server
+            target/x86_64-unknown-freebsd/release/phira-mp-server
+          draft: false
+          prerelease: false
+          # 使用文件名格式区分不同平台
+          additional_files: |
+            target/x86_64-unknown-linux-gnu/release/phira-mp-server: linux-amd64-phira-mp-server
+            target/x86_64-unknown-linux-musl/release/phira-mp-server: linux-musl-amd64-phira-mp-server
+            target/x86_64-unknown-freebsd/release/phira-mp-server: freebsd-amd64-phira-mp-server
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
