@@ -8,7 +8,6 @@ on:
         required: true
 
 jobs:
-
   build:
     runs-on: ${{ matrix.os }}
     strategy:
@@ -36,38 +35,39 @@ jobs:
         run: |
           cd phira-mp
           cargo build --release -p phira-mp-server
-          if [ "${{ matrix.os }}" == "windows-latest" ]; then
-            mv target/release/phira-mp-server.exe target/release/phira-mp-server-${{ matrix.os }}-${{ matrix.arch }}.exe
-          else
-            mv target/release/phira-mp-server target/release/phira-mp-server-${{ matrix.os }}-${{ matrix.arch }}
+
+      - name: Rename and prepare artifacts
+        run: |
+          mkdir -p ../artifacts
+          if [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
+            OS="linux"
+          elif [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+            OS="windows"
+          elif [[ "${{ matrix.os }}" == "macos-latest" ]]; then
+            OS="macos"
           fi
+          mv phira-mp/target/release/phira-mp-server ../artifacts/phira-mp-server-${OS}-${{ matrix.arch }}
 
       - name: Upload artifact
         uses: actions/upload-artifact@v3
         with:
-          name: phira-mp-server-${{ matrix.os }}-${{ matrix.arch }}
-          path: phira-mp/target/release/phira-mp-server-${{ matrix.os }}-${{ matrix.arch }}*
+          name: phira-mp-server
+          path: ../artifacts/*
 
   create_release:
     needs: build
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-        arch: [amd64, arm64]
-
     steps:
-      - name: Download artifact
+      - name: Download artifacts
         uses: actions/download-artifact@v3
         with:
-          name: phira-mp-server-${{ matrix.os }}-${{ matrix.arch }}
+          name: phira-mp-server
           path: ./artifacts
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ github.event.inputs.tag }}
-          files: |
-            ./artifacts/phira-mp-server-*
+          files: ./artifacts/*  # 上传所有重命名后的 artifact
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
