@@ -18,7 +18,7 @@ jobs:
           - os: freebsd-latest
             target: x86_64-unknown-freebsd
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
     - name: Install Rust
       uses: actions-rs/toolchain@v1
       with:
@@ -37,7 +37,7 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
     - name: Download Artifacts
       uses: actions/download-artifact@v3
     - name: Create Release
