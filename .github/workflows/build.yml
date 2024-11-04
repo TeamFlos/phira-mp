@@ -8,6 +8,7 @@ on:
         required: true
 
 jobs:
+
   build:
     runs-on: ${{ matrix.os }}
     strategy:
@@ -35,6 +36,7 @@ jobs:
         run: |
           cd phira-mp
           cargo build --release -p phira-mp-server
+          mv target/release/phira-mp-server target/release/phira-mp-server-${{ matrix.os }}-${{ matrix.arch }}
 
       - name: Upload artifact
         uses: actions/upload-artifact@v3
@@ -45,10 +47,16 @@ jobs:
   create_release:
     needs: build
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        arch: [amd64, arm64]
+
     steps:
       - name: Download artifact
         uses: actions/download-artifact@v3
         with:
+          name: phira-mp-server-${{ matrix.os }}-${{ matrix.arch }}
           path: ./artifacts
 
       - name: Create Release
@@ -56,6 +64,6 @@ jobs:
         with:
           tag_name: ${{ github.event.inputs.tag }}
           files: |
-            ./artifacts/phira-mp-server-*
+            ./artifacts/phira-mp-server-${{ matrix.os }}-${{ matrix.arch }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
