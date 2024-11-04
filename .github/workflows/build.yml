@@ -13,7 +13,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        arch: [amd64, arm64]  # 适用于 Linux
+        arch: [amd64, arm64]
         include:
           - os: ubuntu-latest
             arch: amd64
@@ -39,18 +39,23 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v3
         with:
-          name: phira-mp-server
+          name: phira-mp-server-${{ matrix.os }}-${{ matrix.arch }}  # Include OS and Arch in the artifact name
           path: phira-mp/target/release/phira-mp-server
 
   create_release:
     needs: build
     runs-on: ubuntu-latest
     steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: phira-mp-server-${{ matrix.os }}-${{ matrix.arch }}  # Match the name from the upload step
+
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ github.event.inputs.tag }}
           files: |
-            phira-mp/target/release/phira-mp-server
+            phira-mp-server-${{ matrix.os }}-${{ matrix.arch }}  # Ensure this matches the downloaded artifact name
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
