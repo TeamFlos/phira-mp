@@ -46,11 +46,14 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - name: Download artifacts
-        uses: actions/download-artifact@v3
-        with:
-          name: phira-mp-server-${{ matrix.os }}-${{ matrix.arch }}  # 下载所有构建的 artifact
-          path: ./artifacts
+      - name: Download artifacts for all builds
+        run: |
+          for os in ubuntu-latest windows-latest macos-latest; do
+            for arch in amd64 arm64; do
+              echo "Downloading artifact for $os $arch"
+              actions/download-artifact@v3 --name phira-mp-server-$os-$arch --path ./artifacts/
+            done
+          done
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
