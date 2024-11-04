@@ -36,13 +36,17 @@ jobs:
         run: |
           cd phira-mp
           cargo build --release -p phira-mp-server
-          mv target/release/phira-mp-server target/release/phira-mp-server-${{ matrix.os }}-${{ matrix.arch }}
+          if [ "${{ matrix.os }}" == "windows-latest" ]; then
+            mv target/release/phira-mp-server.exe target/release/phira-mp-server-${{ matrix.os }}-${{ matrix.arch }}.exe
+          else
+            mv target/release/phira-mp-server target/release/phira-mp-server-${{ matrix.os }}-${{ matrix.arch }}
+          fi
 
       - name: Upload artifact
         uses: actions/upload-artifact@v3
         with:
           name: phira-mp-server-${{ matrix.os }}-${{ matrix.arch }}
-          path: phira-mp/target/release/phira-mp-server-${{ matrix.os }}-${{ matrix.arch }}
+          path: phira-mp/target/release/phira-mp-server-${{ matrix.os }}-${{ matrix.arch }}*
 
   create_release:
     needs: build
@@ -64,6 +68,6 @@ jobs:
         with:
           tag_name: ${{ github.event.inputs.tag }}
           files: |
-            ./artifacts/phira-mp-server-${{ matrix.os }}-${{ matrix.arch }}
+            ./artifacts/phira-mp-server-*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
