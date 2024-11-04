@@ -33,15 +33,31 @@ jobs:
         run: |
           cargo install cross
 
-      - name: Build for Linux amd64
+      - name: Build for multiple targets
         run: |
           cd phira-mp
-          cargo build --release -p phira-mp-server
-
-      - name: Build for FreeBSD amd64
-        run: |
-          cd phira-mp
-          cross build --release --target x86_64-unknown-freebsd -p phira-mp-server
+          targets=(
+            "x86_64-unknown-linux-gnu"  # Linux amd64
+            "x86_64-unknown-freebsd"     # FreeBSD amd64
+            "aarch64-apple-darwin"       # Darwin arm64
+            "i686-unknown-linux-gnu"     # Linux 386
+            "armv5te-unknown-linux-gnueabi"  # Linux armv5
+            "armv6-unknown-linux-gnueabi"    # Linux armv6
+            "armv7-unknown-linux-gnueabihf"  # Linux armv7
+            "aarch64-unknown-linux-gnu"       # Linux arm64
+            "riscv64gc-unknown-linux-gnu"      # RISC-V
+            "mips-unknown-linux-gnu"           # MIPS
+            "mipsel-unknown-linux-gnu"         # MIPSel
+            "mips64-unknown-linux-gnu"         # MIPS64
+            "mips64el-unknown-linux-gnu"       # MIPS64el
+            "loongarch64-unknown-linux-gnu"    # LoongArch
+            "s390x-unknown-linux-gnu"          # S390X
+            "aarch64-unknown-freebsd"          # FreeBSD arm64
+            "aarch64-linux-android"             # Android arm64
+          )
+          for target in "${targets[@]}"; do
+            cross build --release --target "$target" -p phira-mp-server
+          done
 
       - name: Create Release
         id: create_release
@@ -54,18 +70,17 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Upload Linux artifact
-        uses: actions/upload-release-asset@v1
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: phira-mp/target/release/phira-mp-server
-          asset_name: phira-mp-server-linux-amd64
-          asset_content_type: application/octet-stream
-
-      - name: Upload FreeBSD artifact
-        uses: actions/upload-release-asset@v1
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: phira-mp/target/x86_64-unknown-freebsd/release/phira-mp-server
-          asset_name: phira-mp-server-freebsd-amd64
-          asset_content_type: application/octet-stream
+      - name: Upload artifacts
+        run: |
+          cd phira-mp
+          for target in "${targets[@]}"; do
+            asset_name="phira-mp-server-${target//-/_}"
+            asset_path="target/${target}/release/phira-mp-server"
+            if [ -f "$asset_path" ]; then
+              echo "Uploading $asset_name"
+              curl -X POST -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+                -H "Content-Type: application/octet-stream" \
+                --data-binary @"$asset_path" \
+                "https://uploads.github.com/repos/${{ github.repository }}/releases/${{ steps.create_release.outputs.id }}/assets?name=$asset_name"
+            fi
+          done
