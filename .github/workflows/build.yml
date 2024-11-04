@@ -6,56 +6,63 @@ on:
       release_tag:
         description: 'Release Tag'
         required: true
+        default: 'v1.0.0'
 
 jobs:
-
   build:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest, freebsd-latest]
-        include:
-          - os: freebsd-latest
-            target: x86_64-unknown-freebsd
+        os: [ubuntu-latest, windows-latest, macos-latest, freebsd]
+        arch: [x86_64, aarch64]
+
     steps:
-    - uses: actions/checkout@v3
-    - name: Install Rust
-      uses: actions-rs/toolchain@v1
-      with:
-        toolchain: stable
-    - name: Build
-      run: |
-        cd phira-mp
-        cargo build --release -p phira-mp-server
-    - name: Upload Artifact
-      uses: actions/upload-artifact@v3
-      with:
-        name: phira-mp-server-${{ matrix.os }}-${{ matrix.target }}
-        path: phira-mp/target/release/phira-mp-server
-        
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+          components: rustfmt
+
+      - name: Install dependencies
+        run: |
+          cargo build --release -p phira-mp-server
+
+      - name: Create Release Artifact
+        run: |
+          if [ "${{ matrix.os }}" == "freebsd" ]; then
+            # FreeBSD specific build steps
+            echo "Building for FreeBSD..."
+            # 这里可以添加 FreeBSD 特有的构建命令
+          fi
+          mv target/release/phira-mp-server phira-mp-server-${{ matrix.os }}-${{ matrix.arch }}
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: phira-mp-server-${{ matrix.os }}-${{ matrix.arch }}
+          path: phira-mp-server-${{ matrix.os }}-${{ matrix.arch }}
+
   release:
     needs: build
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
-    - name: Download Artifacts
-      uses: actions/download-artifact@v3
-    - name: Create Release
-      id: create_release
-      uses: actions/create-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        tag_name: ${{ github.event.inputs.release_tag }}
-        release_name: Release ${{ github.event.inputs.release_tag }}
-        draft: false
-        prerelease: false
-    - name: Upload Release Assets
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./phira-mp-server-${{ matrix.os }}-${{ matrix.target }}
-        asset_name: phira-mp-server-${{ matrix.os }}-${{ matrix.target }}
-        asset_content_type: application/octet-stream
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Create Release
+        id: create_release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag: ${{ github.event.inputs.release_tag }}
+          files: |
+            phira-mp-server-ubuntu-latest-x86_64
+            phira-mp-server-ubuntu-latest-aarch64
+            phira-mp-server-windows-latest-x86_64
+            phira-mp-server-macos-latest-x86_64
+            phira-mp-server-freebsd-x86_64
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
