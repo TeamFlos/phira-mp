@@ -1,151 +1,35 @@
-name: Build and Release phira-mp
+name: Build Rust Project
 
 on:
   workflow_dispatch:
     inputs:
-      tag:
-        description: 'Release tag (e.g., v1.0.0)'
+      release_tag:
+        description: 'Release Tag (e.g. v1.0.0)'
         required: true
+        default: 'v1.0.0'
 
 jobs:
   build:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        include:
-          - os: ubuntu-latest
-            arch: amd64
-            target: x86_64-unknown-linux-gnu
-            binary: phira-mp-server
-            artifact: phira-mp-server-linux-amd64
-          - os: ubuntu-latest
-            arch: arm64
-            target: aarch64-unknown-linux-gnu
-            binary: phira-mp-server
-            artifact: phira-mp-server-linux-arm64
-          - os: windows-latest
-            arch: amd64
-            target: x86_64-pc-windows-msvc
-            binary: phira-mp-server.exe
-            artifact: phira-mp-server-windows-amd64.exe
-          - os: macos-latest
-            arch: amd64
-            target: x86_64-apple-darwin
-            binary: phira-mp-server
-            artifact: phira-mp-server-macos-amd64
-          - os: macos-latest
-            arch: arm64
-            target: aarch64-apple-darwin
-            binary: phira-mp-server
-            artifact: phira-mp-server-macos-arm64
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v2
 
-      - name: Clone phira-mp repository
-        run: git clone https://github.com/TeamFlos/phira-mp
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+      - name: Set up Rust
+        uses: actions-rs/toolchain@v1
         with:
-          targets: ${{ matrix.target }}
+          toolchain: stable
+          override: true
 
-      - name: Install cross-compilation tools
-        if: matrix.os == 'ubuntu-latest' && matrix.arch == 'arm64'
+      - name: Build the project
         run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc-aarch64-linux-gnu
-          sudo apt-get install -y libssl-dev pkg-config
-          sudo apt-get install -y gcc-multilib
-          cargo install cross
+          cargo build --release -p phira-mp-server
 
-      - name: Install OpenSSL (macOS)
-        if: matrix.os == 'macos-latest'
-        run: |
-          brew install openssl@3
-          echo 'export OPENSSL_ROOT_DIR="/usr/local/opt/openssl@3"' >> ~/.bash_profile
-          echo 'export OPENSSL_LIB_DIR="/usr/local/opt/openssl@3/lib"' >> ~/.bash_profile
-          echo 'export OPENSSL_INCLUDE_DIR="/usr/local/opt/openssl@3/include"' >> ~/.bash_profile
-          source ~/.bash_profile
-
-      - name: Install vcpkg (Windows)
-        if: matrix.os == 'windows-latest'
-        uses: lukka/run-vcpkg@v7
+      - name: Upload Release Asset
+        uses: softprops/action-gh-release@v1
         with:
-          setupOnly: true
-
-      - name: Install OpenSSL (Windows)
-        if: matrix.os == 'windows-latest'
-        run: |
-          vcpkg install openssl:x64-windows-static
-          echo "OPENSSL_DIR=$env:VCPKG_ROOT/installed/x64-windows-static" | Out-File -FilePath $env:GITHUB_ENV -Append
-          echo "OPENSSL_STATIC=1" | Out-File -FilePath $env:GITHUB_ENV -Append
-
-      - name: Rust Cache
-        uses: Swatinem/rust-cache@v2
-        with:
-          key: ${{ matrix.target }}
-
-      - name: Build phira-mp (Linux native)
-        if: matrix.os == 'ubuntu-latest' && matrix.arch == 'amd64'
-        run: |
-          cd phira-mp
-          cargo build --release -p phira-mp-server --target ${{ matrix.target }}
+          tag: ${{ github.event.inputs.release_tag }}
+          files: target/release/phira-mp-server
         env:
-          CARGO_TARGET_DIR: target
-
-      - name: Build phira-mp (Linux ARM64)
-        if: matrix.os == 'ubuntu-latest' && matrix.arch == 'arm64'
-        run: |
-          cd phira-mp
-          cross build --release -p phira-mp-server --target ${{ matrix.target }}
-        env:
-          CARGO_TARGET_DIR: target
-          PKG_CONFIG_ALLOW_CROSS: 1
-          OPENSSL_STATIC: 1
-
-      - name: Build phira-mp (macOS/Windows)
-        if: matrix.os != 'ubuntu-latest'
-        run: |
-          cd phira-mp
-          cargo build --release -p phira-mp-server --target ${{ matrix.target }}
-        env:
-          CARGO_TARGET_DIR: target
-          OPENSSL_STATIC: 1
-
-      - name: Prepare artifact
-        shell: bash
-        run: |
-          cd phira-mp
-          cp "target/${{ matrix.target }}/release/${{ matrix.binary }}" "../${{ matrix.artifact }}"
-          if [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
-            strip "../${{ matrix.artifact }}" || true
-          fi
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.artifact }}
-          path: ${{ matrix.artifact }}
-
-  create_release:
-    needs: build
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    
-    steps:
-      - name: Download artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: artifacts/
-          merge-multiple: true
-
-      - name: Create Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ github.event.inputs.tag }}
-          name: "Release ${{ github.event.inputs.tag }}"
-          files: artifacts/*
-          prerelease: false
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
