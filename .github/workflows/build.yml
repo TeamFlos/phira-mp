@@ -16,8 +16,13 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v2
 
-      - name: Install OpenSSL
-        run: sudo apt-get install -y libssl-dev
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libssl-dev pkg-config
+
+      - name: Set OpenSSL environment variable
+        run: echo "OPENSSL_DIR=/usr/include/openssl" >> $GITHUB_ENV
 
       - name: Set up Rust
         uses: actions-rs/toolchain@v1
@@ -26,8 +31,7 @@ jobs:
           override: true
 
       - name: Install cross
-        run: |
-          cargo install cross
+        run: cargo install cross
 
       - name: Build the project for multiple platforms
         run: |
@@ -47,6 +51,3 @@ jobs:
             target/x86_64-unknown-freebsd/release/phira-mp-server
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Set draft and prerelease
-        run: echo "This action does not support draft or prerelease directly"
-        if: false
