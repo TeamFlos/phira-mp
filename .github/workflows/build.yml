@@ -1,10 +1,10 @@
-name: Build and Release phira-mp
+name: Build Rust Project
 
 on:
   workflow_dispatch:
     inputs:
-      tag:
-        description: 'Release tag (e.g., v1.0.0)'
+      release_tag:
+        description: 'Release Tag'
         required: true
 
 jobs:
@@ -12,53 +12,79 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-        arch: [amd64, arm64]
-        include:
-          - os: ubuntu-latest
-            arch: amd64
-          - os: ubuntu-latest
-            arch: arm64
-          - os: windows-latest
-            arch: amd64
-          - os: macos-latest
-            arch: amd64
+        os: [ubuntu-latest, windows-latest, macos-latest, freebsd]  # 添加 FreeBSD 支持
+        arch: [x64, arm64]  # 你可以根据需要添加其他架构
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v2
 
-      - name: Clone phira-mp repository
-        run: git clone https://github.com/TeamFlos/phira-mp
+      - name: Set up Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
 
-      - name: Build phira-mp
+      - name: Build the project
         run: |
           cd phira-mp
           cargo build --release -p phira-mp-server
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v3
-        with:
-          name: phira-mp-server-${{ matrix.os }}-${{ matrix.arch }}
-          path: phira-mp/target/release/phira-mp-server
+      - name: Create release artifact
+        run: |
+          ARTIFACT_NAME="phira-mp-server-${{ matrix.os }}-${{ matrix.arch }}"
+          cp phira-mp/target/release/phira-mp-server target/$ARTIFACT_NAME
 
-  create_release:
+      - name: Upload Release Asset
+        uses: actions/upload-artifact@v2
+        with:
+          name: ${{ github.event.inputs.release_tag }}
+          path: target/phira-mp-server-${{ matrix.os }}-${{ matrix.arch }}
+
+  freebsd:
     needs: build
+    runs-on: ubuntu-latest  # FreeBSD 需要单独的 VM
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Setup FreeBSD VM
+        uses: vmactions/freebsd-vm@v1
+
+      - name: Set up Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+
+      - name: Build the project on FreeBSD
+        run: |
+          cd phira-mp
+          cargo build --release -p phira-mp-server
+
+      - name: Create FreeBSD release artifact
+        run: |
+          ARTIFACT_NAME="phira-mp-server-freebsd-x64"
+          cp phira-mp/target/release/phira-mp-server target/$ARTIFACT_NAME
+
+      - name: Upload FreeBSD Release Asset
+        uses: actions/upload-artifact@v2
+        with:
+          name: ${{ github.event.inputs.release_tag }}-freebsd
+          path: target/phira-mp-server-freebsd-x64
+
+  publish:
+    needs: [build, freebsd]
     runs-on: ubuntu-latest
     steps:
-      - name: Download all artifacts
-        run: |
-          for os in ubuntu-latest windows-latest macos-latest; do
-            for arch in amd64 arm64; do
-              echo "Downloading artifact for $os $arch"
-              actions/download-artifact@v3 --name phira-mp-server-$os-$arch --path ./artifacts/
-            done
-          done
-
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: ${{ github.event.inputs.tag }}
-          files: ./artifacts/**  # 上传所有下载的 artifact
+          tag: ${{ github.event.inputs.release_tag }}
+          files: |
+            target/phira-mp-server-ubuntu-x64
+            target/phira-mp-server-windows-x64
+            target/phira-mp-server-macos-x64
+            target/phira-mp-server-freebsd-x64
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
