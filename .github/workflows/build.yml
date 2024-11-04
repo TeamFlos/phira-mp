@@ -12,15 +12,15 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest, freebsd]  # 添加 FreeBSD 支持
-        arch: [x64, arm64]  # 你可以根据需要添加其他架构
+        os: [ubuntu-latest, windows-latest, macos-latest]  # FreeBSD 在单独的作业中处理
+        arch: [x64, arm64]
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3  # 使用最新版本
+        uses: actions/checkout@v3
 
       - name: Set up Rust
-        uses: actions-rs/toolchain@v1  # 使用 v1 版本
+        uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
           override: true
@@ -38,21 +38,20 @@ jobs:
       - name: Upload Release Asset
         uses: actions/upload-artifact@v3
         with:
-          name: ${{ github.event.inputs.release_tag }}
+          name: ${{ github.event.inputs.release_tag }}-${{ matrix.os }}-${{ matrix.arch }}
           path: target/phira-mp-server-${{ matrix.os }}-${{ matrix.arch }}
 
   freebsd:
-    needs: build
-    runs-on: ubuntu-latest  # FreeBSD 需要单独的 VM
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3  # 使用最新版本
+        uses: actions/checkout@v3
 
       - name: Setup FreeBSD VM
         uses: vmactions/freebsd-vm@v1
 
       - name: Set up Rust
-        uses: actions-rs/toolchain@v1  # 使用 v1 版本
+        uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
           override: true
@@ -64,8 +63,7 @@ jobs:
 
       - name: Create FreeBSD release artifact
         run: |
-          ARTIFACT_NAME="phira-mp-server-freebsd-x64"
-          cp phira-mp/target/release/phira-mp-server target/$ARTIFACT_NAME
+          cp phira-mp/target/release/phira-mp-server target/phira-mp-server-freebsd-x64
 
       - name: Upload FreeBSD Release Asset
         uses: actions/upload-artifact@v3
