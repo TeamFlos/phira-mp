@@ -1,7 +1,11 @@
-name: Build on FreeBSD
+name: Build and Release on FreeBSD
 
 on:
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag (e.g., v1.0.0)'
+        required: true
 
 jobs:
   build:
@@ -14,7 +18,7 @@ jobs:
         uses: vmactions/freebsd-vm@v1
         with:
           usesh: true
-          release: "13.2"  # 指定 FreeBSD 版本
+          release: "14.1"  # 指定 FreeBSD 版本
           prepare: |
             pkg install -y git rust cargo  # 安装构建所需工具
           run: |
@@ -29,3 +33,17 @@ jobs:
           name: phira-mp-server
           path: |
             phira-mp/target/release/phira-mp-server  # 上传构建产物
+
+  create_release:
+    needs: build  # 等待 build 作业完成
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create Release
+        if: success()  # 如果构建成功
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.event.inputs.tag }}  # 使用输入的 tag
+          files: |
+            phira-mp/target/release/phira-mp-server  # 包含构建产物
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # GitHub Token 用于认证
