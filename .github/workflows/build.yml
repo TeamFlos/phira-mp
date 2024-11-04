@@ -39,14 +39,14 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v3
         with:
-          name: phira-mp-server-${{ matrix.os }}-${{ matrix.arch }}  # 使用 OS 和架构作为唯一标识
+          name: phira-mp-server-${{ matrix.os }}-${{ matrix.arch }}
           path: phira-mp/target/release/phira-mp-server
 
   create_release:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - name: Download artifacts for all builds
+      - name: Download all artifacts
         run: |
           for os in ubuntu-latest windows-latest macos-latest; do
             for arch in amd64 arm64; do
