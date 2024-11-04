@@ -1,10 +1,10 @@
-name: Build Rust Project
+name: Build and Release
 
 on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: 'Release Tag (e.g. v1.0.0)'
+        description: 'Release Tag'
         required: true
         default: 'v1.0.0'
 
@@ -13,46 +13,65 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libssl-dev pkg-config
-
-      - name: Set OpenSSL environment variables
-        run: |
-          echo "OPENSSL_DIR=/usr" >> $GITHUB_ENV
-          echo "PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig" >> $GITHUB_ENV
+      - name: Checkout repository
+        uses: actions/checkout@v2
 
       - name: Set up Rust
         uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
           override: true
+          override-file: Cargo.toml
 
       - name: Install cross
-        run: cargo install cross
-
-      - name: Verify cross installation
-        run: cross --version
-
-      - name: Build the project for multiple platforms
         run: |
-          cross build --release --target x86_64-unknown-linux-gnu
-          cross build --release --target x86_64-unknown-linux-musl
-          cross build --release --target x86_64-unknown-freebsd
+          cargo install cross
+
+      - name: Build for Windows amd64
+        run: |
+          cross build --release --target x86_64-pc-windows-gnu -p phira-mp-server
+        env:
+          CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER: x86_64-w64-mingw32-gcc
+
+      - name: Build for Linux amd64
+        run: |
+          cross build --release --target x86_64-unknown-linux-gnu -p phira-mp-server
+
+      - name: Build for FreeBSD amd64
+        run: |
+          cross build --release --target x86_64-unknown-freebsd -p phira-mp-server
 
       - name: Create Release
         id: create_release
-        uses: softprops/action-gh-release@v1
+        uses: actions/create-release@v1
         with:
           tag_name: ${{ github.event.inputs.release_tag }}
-          name: Release ${{ github.event.inputs.release_tag }}
-          files: |
-            target/x86_64-unknown-linux-gnu/release/phira-mp-server
-            target/x86_64-unknown-linux-musl/release/phira-mp-server
-            target/x86_64-unknown-freebsd/release/phira-mp-server
+          release_name: Release ${{ github.event.inputs.release_tag }}
+          draft: false
+          prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Windows artifact
+        uses: actions/upload-release-asset@v1
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: target/x86_64-pc-windows-gnu/release/phira-mp-server.exe
+          asset_name: phira-mp-server-windows-amd64.exe
+          asset_content_type: application/octet-stream
+
+      - name: Upload Linux artifact
+        uses: actions/upload-release-asset@v1
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: target/x86_64-unknown-linux-gnu/release/phira-mp-server
+          asset_name: phira-mp-server-linux-amd64
+          asset_content_type: application/octet-stream
+
+      - name: Upload FreeBSD artifact
+        uses: actions/upload-release-asset@v1
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: target/x86_64-unknown-freebsd/release/phira-mp-server
+          asset_name: phira-mp-server-freebsd-amd64
+          asset_content_type: application/octet-stream
