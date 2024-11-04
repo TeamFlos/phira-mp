@@ -36,7 +36,7 @@ jobs:
           cp phira-mp/target/release/phira-mp-server target/$ARTIFACT_NAME
 
       - name: Upload Release Asset
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3  # 更新版本到 v3
         with:
           name: ${{ github.event.inputs.release_tag }}
           path: target/phira-mp-server-${{ matrix.os }}-${{ matrix.arch }}
@@ -68,7 +68,7 @@ jobs:
           cp phira-mp/target/release/phira-mp-server target/$ARTIFACT_NAME
 
       - name: Upload FreeBSD Release Asset
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3  # 更新版本到 v3
         with:
           name: ${{ github.event.inputs.release_tag }}-freebsd
           path: target/phira-mp-server-freebsd-x64
