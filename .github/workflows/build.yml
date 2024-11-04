@@ -51,10 +51,10 @@ jobs:
 
       - name: Move Build Artifact
         run: |
-          if [ "${{ matrix.os }}" == "windows-latest" ]; then
-            Move-Item -Path target\release\phira-mp-server.exe -Destination $BUILD_NAME
-          else
+          if [ "${{ matrix.os }}" != "windows-latest" ]; then
             mv target/release/phira-mp-server $BUILD_NAME
+          else
+            Move-Item -Path target\release\phira-mp-server.exe -Destination $BUILD_NAME
           fi
 
       - name: Upload Build Artifact
