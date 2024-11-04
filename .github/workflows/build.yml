@@ -1,36 +1,119 @@
-name: Release Build
+name: Rust Multi-Platform Build
 
 on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Release Tag'
+        description: "Tag name of release"
         required: true
         type: string
 
 env:
   CARGO_TERM_COLOR: always
+  CARGO_TARGET_DIR: target
 
 jobs:
   build:
     strategy:
       matrix:
         include:
-          - os: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
-            artifact_name: phira-mp-server-linux-amd64
-          - os: ubuntu-latest
-            target: aarch64-unknown-linux-gnu
-            artifact_name: phira-mp-server-linux-arm64
+          # Windows
           - os: windows-latest
             target: x86_64-pc-windows-msvc
-            artifact_name: phira-mp-server-windows-amd64.exe
+            suffix: .exe
+            name: windows-amd64-v1
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            suffix: .exe
+            rustflags: "-C target-cpu=x86-64-v3"
+            name: windows-amd64-v3
+          - os: windows-latest
+            target: i686-pc-windows-msvc
+            suffix: .exe
+            name: windows-386
+          - os: windows-latest
+            target: aarch64-pc-windows-msvc
+            suffix: .exe
+            name: windows-arm64
+          
+          # Linux
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            name: linux-amd64-v1
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            rustflags: "-C target-cpu=x86-64-v3"
+            name: linux-amd64-v3
+          - os: ubuntu-latest
+            target: i686-unknown-linux-gnu
+            name: linux-386
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            name: linux-arm64
+          - os: ubuntu-latest
+            target: arm-unknown-linux-gnueabihf
+            name: linux-arm-5
+            rustflags: "-C target-feature=+v5"
+          - os: ubuntu-latest
+            target: arm-unknown-linux-gnueabihf
+            name: linux-arm-6
+            rustflags: "-C target-feature=+v6"
+          - os: ubuntu-latest
+            target: arm-unknown-linux-gnueabihf
+            name: linux-arm-7
+            rustflags: "-C target-feature=+v7"
+          - os: ubuntu-latest
+            target: riscv64gc-unknown-linux-gnu
+            name: linux-riscv64
+          - os: ubuntu-latest
+            target: mips-unknown-linux-gnu
+            name: linux-mips
+          - os: ubuntu-latest
+            target: mipsel-unknown-linux-gnu
+            name: linux-mipsle
+          - os: ubuntu-latest
+            target: mips64-unknown-linux-gnuabi64
+            name: linux-mips64
+          - os: ubuntu-latest
+            target: mips64el-unknown-linux-gnuabi64
+            name: linux-mips64le
+          - os: ubuntu-latest
+            target: s390x-unknown-linux-gnu
+            name: linux-s390x
+          - os: ubuntu-latest
+            target: loongarch64-unknown-linux-gnu
+            name: linux-loong64
+          
+          # macOS
           - os: macos-latest
             target: x86_64-apple-darwin
-            artifact_name: phira-mp-server-macos-amd64
+            name: darwin-amd64-v1
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            rustflags: "-C target-cpu=x86-64-v3"
+            name: darwin-amd64-v3
           - os: macos-latest
             target: aarch64-apple-darwin
-            artifact_name: phira-mp-server-macos-arm64
+            name: darwin-arm64
+          
+          # FreeBSD
+          - os: ubuntu-latest
+            target: x86_64-unknown-freebsd
+            name: freebsd-amd64
+          - os: ubuntu-latest
+            target: i686-unknown-freebsd
+            name: freebsd-386
+          - os: ubuntu-latest
+            target: aarch64-unknown-freebsd
+            name: freebsd-arm64
+
+          # Android
+          - os: ubuntu-latest
+            target: aarch64-linux-android
+            name: android-arm64
+          - os: ubuntu-latest
+            target: armv7-linux-androideabi
+            name: android-arm-7
 
     runs-on: ${{ matrix.os }}
     
@@ -43,52 +126,63 @@ jobs:
         targets: ${{ matrix.target }}
     
     - name: Install cross-compilation dependencies
-      if: matrix.target == 'aarch64-unknown-linux-gnu'
+      if: runner.os == 'Linux' && matrix.target != 'x86_64-unknown-linux-gnu'
       run: |
         sudo apt-get update
-        sudo apt-get install -y gcc-aarch64-linux-gnu
-        sudo apt install pkg-config libssl-dev
+        sudo apt-get install -y gcc-multilib
+        case ${{ matrix.target }} in
+          "aarch64-unknown-linux-gnu") sudo apt-get install -y gcc-aarch64-linux-gnu ;;
+          "arm-unknown-linux-gnueabihf") sudo apt-get install -y gcc-arm-linux-gnueabihf ;;
+          "riscv64gc-unknown-linux-gnu") sudo apt-get install -y gcc-riscv64-linux-gnu ;;
+          "mips-unknown-linux-gnu") sudo apt-get install -y gcc-mips-linux-gnu ;;
+          "mipsel-unknown-linux-gnu") sudo apt-get install -y gcc-mipsel-linux-gnu ;;
+          "mips64-unknown-linux-gnuabi64") sudo apt-get install -y gcc-mips64-linux-gnuabi64 ;;
+          "mips64el-unknown-linux-gnuabi64") sudo apt-get install -y gcc-mips64el-linux-gnuabi64 ;;
+          "s390x-unknown-linux-gnu") sudo apt-get install -y gcc-s390x-linux-gnu ;;
+        esac
 
     - name: Rust Cache
       uses: Swatinem/rust-cache@v2
-    
+      with:
+        key: ${{ matrix.target }}
+
     - name: Build
+      env:
+        RUSTFLAGS: ${{ matrix.rustflags }}
       run: cargo build --release -p phira-mp-server --target ${{ matrix.target }}
-    
-    - name: Rename binary
+
+    - name: Prepare artifact
       shell: bash
       run: |
-        if [ "${{ matrix.os }}" = "windows-latest" ]; then
-          cp "target/${{ matrix.target }}/release/phira-mp-server.exe" "${{ matrix.artifact_name }}"
-        else
-          cp "target/${{ matrix.target }}/release/phira-mp-server" "${{ matrix.artifact_name }}"
+        binary_name="phira-mp-server-${{ matrix.name }}${{ matrix.suffix }}"
+        cp "target/${{ matrix.target }}/release/phira-mp-server${{ matrix.suffix }}" "$binary_name"
+        if [[ "${{ runner.os }}" == "Linux" ]]; then
+          strip "$binary_name" || true
         fi
-    
+
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
-        name: ${{ matrix.artifact_name }}
-        path: ${{ matrix.artifact_name }}
+        name: phira-mp-server-${{ matrix.name }}${{ matrix.suffix }}
+        path: phira-mp-server-${{ matrix.name }}${{ matrix.suffix }}
 
   create-release:
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     
     steps:
     - name: Download artifacts
       uses: actions/download-artifact@v4
+      with:
+        path: artifacts/
+        merge-multiple: true
       
     - name: Create Release
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: |
-        assets=()
-        for asset in ./*/*.exe ./*/*; do
-          if [ -f "$asset" ]; then
-            assets+=("-a" "$asset")
-          fi
-        done
-        gh release create ${{ github.event.inputs.tag }} \
-          -t "Release ${{ github.event.inputs.tag }}" \
-          -n "Release ${{ github.event.inputs.tag }}" \
-          "${assets[@]}"
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: ${{ github.event.inputs.tag }}
+        name: Release ${{ github.event.inputs.tag }}
+        files: artifacts/*
+        prerelease: false
