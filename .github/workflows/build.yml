@@ -1,88 +1,179 @@
-name: Build Rust Project
+name: Release Phira MP Server
 
 on:
   workflow_dispatch:
     inputs:
-      release_tag:
+      release-tag:
         description: 'Release Tag'
         required: true
+        type: string
 
 jobs:
-  build:
+  release:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]  # FreeBSD 在单独的作业中处理
-        arch: [x64, arm64]
-
+        os: [ubuntu-latest, windows-latest, macOS-latest]
+        arch: [x86_64, aarch64, i686]
+        include:
+          - os: ubuntu-latest
+            arch: x86_64
+            triplet: x86_64-unknown-linux-gnu
+          - os: ubuntu-latest
+            arch: aarch64
+            triplet: aarch64-unknown-linux-gnu
+          - os: ubuntu-latest
+            arch: i686
+            triplet: i686-unknown-linux-gnu
+          - os: windows-latest
+            arch: x86_64
+            triplet: x86_64-pc-windows-msvc
+          - os: windows-latest
+            arch: aarch64
+            triplet: aarch64-pc-windows-msvc
+          - os: macOS-latest
+            arch: x86_64
+            triplet: x86_64-apple-darwin
+          - os: macOS-latest
+            arch: aarch64
+            triplet: aarch64-apple-darwin
     steps:
-      - name: Checkout repository
+      - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Set up Rust
+      - name: Install Rust
         uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
-          override: true
 
-      - name: Build the project
+      - name: Install dependencies
         run: |
-          cd phira-mp
-          cargo build --release -p phira-mp-server
+          cargo fetch
 
-      - name: Create release artifact
+      - name: Build
         run: |
-          ARTIFACT_NAME="phira-mp-server-${{ matrix.os }}-${{ matrix.arch }}"
-          cp phira-mp/target/release/phira-mp-server target/$ARTIFACT_NAME
+          cargo build --release --target ${{ matrix.triplet }} -p phira-mp-server
 
-      - name: Upload Release Asset
+      - name: Upload artifact
         uses: actions/upload-artifact@v3
         with:
-          name: ${{ github.event.inputs.release_tag }}-${{ matrix.os }}-${{ matrix.arch }}
-          path: target/phira-mp-server-${{ matrix.os }}-${{ matrix.arch }}
+          name: phira-mp-server-${{ matrix.os }}-${{ matrix.arch }}
+          path: target/${{ matrix.triplet }}/release/phira-mp-server
 
   freebsd:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
+      - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Setup FreeBSD VM
+      - name: Create FreeBSD VM
         uses: vmactions/freebsd-vm@v1
 
-      - name: Set up Rust
+      - name: Install Rust
         uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
-          override: true
 
-      - name: Build the project on FreeBSD
+      - name: Install dependencies
         run: |
-          cd phira-mp
-          cargo build --release -p phira-mp-server
+          cargo fetch
 
-      - name: Create FreeBSD release artifact
+      - name: Build
         run: |
-          cp phira-mp/target/release/phira-mp-server target/phira-mp-server-freebsd-x64
+          cargo build --release --target x86_64-unknown-freebsd -p phira-mp-server
 
-      - name: Upload FreeBSD Release Asset
+      - name: Upload artifact
         uses: actions/upload-artifact@v3
         with:
-          name: ${{ github.event.inputs.release_tag }}-freebsd
-          path: target/phira-mp-server-freebsd-x64
+          name: phira-mp-server-FreeBSD-x86_64
+          path: target/x86_64-unknown-freebsd/release/phira-mp-server
 
-  publish:
-    needs: [build, freebsd]
+  release-upload:
+    needs: [release, freebsd]
     runs-on: ubuntu-latest
     steps:
-      - name: Create Release
-        uses: softprops/action-gh-release@v1
+      - name: Download artifacts
+        uses: actions/download-artifact@v3
         with:
-          tag: ${{ github.event.inputs.release_tag }}
-          files: |
-            target/phira-mp-server-ubuntu-x64
-            target/phira-mp-server-windows-x64
-            target/phira-mp-server-macos-x64
-            target/phira-mp-server-freebsd-x64
+          path: artifacts
+
+      - name: Create release
+        id: create_release
+        uses: actions/create-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_NAME: ${{ github.event.inputs.release-tag }}
+          RELEASE_BODY: 'Automated release'
+
+      - name: Upload release assets
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: artifacts/phira-mp-server-ubuntu-latest-x86_64
+          asset_name: phira-mp-server-Linux-x86_64
+          asset_content_type: application/octet-stream
+      - name: Upload release assets
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: artifacts/phira-mp-server-ubuntu-latest-aarch64
+          asset_name: phira-mp-server-Linux-aarch64
+          asset_content_type: application/octet-stream
+      - name: Upload release assets
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: artifacts/phira-mp-server-ubuntu-latest-i686
+          asset_name: phira-mp-server-Linux-i686
+          asset_content_type: application/octet-stream
+      - name: Upload release assets
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: artifacts/phira-mp-server-windows-latest-x86_64
+          asset_name: phira-mp-server-Windows-x86_64
+          asset_content_type: application/octet-stream
+      - name: Upload release assets
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: artifacts/phira-mp-server-windows-latest-aarch64
+          asset_name: phira-mp-server-Windows-aarch64
+          asset_content_type: application/octet-stream
+      - name: Upload release assets
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: artifacts/phira-mp-server-macOS-latest-x86_64
+          asset_name: phira-mp-server-macOS-x86_64
+          asset_content_type: application/octet-stream
+      - name: Upload release assets
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: artifacts/phira-mp-server-macOS-latest-aarch64
+          asset_name: phira-mp-server-macOS-aarch64
+          asset_content_type: application/octet-stream
+      - name: Upload release assets
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: artifacts/phira-mp-server-FreeBSD-x86_64
+          asset_name: phira-mp-server-FreeBSD-x86_64
+          asset_content_type: application/octet-stream
