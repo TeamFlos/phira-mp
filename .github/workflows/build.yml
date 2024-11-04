@@ -1,4 +1,4 @@
-name: Build Release
+name: Release Build
 
 on:
   workflow_dispatch:
@@ -8,109 +8,86 @@ on:
         required: true
         type: string
 
+env:
+  CARGO_TERM_COLOR: always
+
 jobs:
-  build-standard:
+  build:
     strategy:
       matrix:
         include:
-          # Linux builds
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
-            name: linux-x86_64
+            artifact_name: phira-mp-server-linux-amd64
           - os: ubuntu-latest
             target: aarch64-unknown-linux-gnu
-            name: linux-aarch64
-          # Windows builds
+            artifact_name: phira-mp-server-linux-arm64
           - os: windows-latest
             target: x86_64-pc-windows-msvc
-            name: windows-x86_64
-          - os: windows-latest
-            target: aarch64-pc-windows-msvc
-            name: windows-aarch64
-          # macOS builds
+            artifact_name: phira-mp-server-windows-amd64.exe
           - os: macos-latest
             target: x86_64-apple-darwin
-            name: macos-x86_64
+            artifact_name: phira-mp-server-macos-amd64
           - os: macos-latest
             target: aarch64-apple-darwin
-            name: macos-aarch64
+            artifact_name: phira-mp-server-macos-arm64
 
     runs-on: ${{ matrix.os }}
     
     steps:
-      - uses: actions/checkout@v4
-        with:
-          repository: 'TeamFlos/phira-mp'
-          
-      - name: Setup Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          target: ${{ matrix.target }}
-          override: true
-          
-      - name: Build for ${{ matrix.name }}
-        run: cargo build --release -p phira-mp-server --target ${{ matrix.target }}
-        
-      - name: Prepare artifact (Unix)
-        if: runner.os != 'Windows'
-        run: |
-          cd target/${{ matrix.target }}/release
-          mv phira-mp-server phira-mp-server-${{ matrix.name }}
-          
-      - name: Prepare artifact (Windows)
-        if: runner.os == 'Windows'
-        run: |
-          cd target/${{ matrix.target }}/release
-          mv phira-mp-server.exe phira-mp-server-${{ matrix.name }}.exe
-          
-      - name: Upload artifact
-        uses: actions/upload-artifact@v3
-        with:
-          name: phira-mp-server-${{ matrix.name }}
-          path: target/${{ matrix.target }}/release/phira-mp-server-${{ matrix.name }}*
-
-  build-freebsd:
-    runs-on: ubuntu-latest
+    - uses: actions/checkout@v4
     
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          repository: 'TeamFlos/phira-mp'
-          
-      - name: Build on FreeBSD
-        uses: vmactions/freebsd-vm@v1
-        with:
-          usesh: true
-          prepare: |
-            pkg install -y curl
-            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-            source $HOME/.cargo/env
-          run: |
-            source $HOME/.cargo/env
-            cargo build --release -p phira-mp-server
-            cd target/release
-            mv phira-mp-server phira-mp-server-freebsd-x86_64
-            
-      - name: Upload FreeBSD artifact
-        uses: actions/upload-artifact@v3
-        with:
-          name: phira-mp-server-freebsd-x86_64
-          path: target/release/phira-mp-server-freebsd-x86_64
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        targets: ${{ matrix.target }}
+    
+    - name: Install cross-compilation dependencies
+      if: matrix.target == 'aarch64-unknown-linux-gnu'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y gcc-aarch64-linux-gnu
+
+    - name: Rust Cache
+      uses: Swatinem/rust-cache@v2
+    
+    - name: Build
+      run: cargo build --release -p phira-mp-server --target ${{ matrix.target }}
+    
+    - name: Rename binary
+      shell: bash
+      run: |
+        if [ "${{ matrix.os }}" = "windows-latest" ]; then
+          cp "target/${{ matrix.target }}/release/phira-mp-server.exe" "${{ matrix.artifact_name }}"
+        else
+          cp "target/${{ matrix.target }}/release/phira-mp-server" "${{ matrix.artifact_name }}"
+        fi
+    
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ matrix.artifact_name }}
+        path: ${{ matrix.artifact_name }}
 
   create-release:
-    needs: [build-standard, build-freebsd]
+    needs: build
     runs-on: ubuntu-latest
     
     steps:
-      - name: Download all artifacts
-        uses: actions/download-artifact@v3
-        
-      - name: Create Release
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: ${{ github.event.inputs.tag }}
-          files: |
-            phira-mp-server-*/phira-mp-server-*
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    - name: Download artifacts
+      uses: actions/download-artifact@v4
+      
+    - name: Create Release
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        assets=()
+        for asset in ./*/*.exe ./*/*; do
+          if [ -f "$asset" ]; then
+            assets+=("-a" "$asset")
+          fi
+        done
+        gh release create ${{ github.event.inputs.tag }} \
+          -t "Release ${{ github.event.inputs.tag }}" \
+          -n "Release ${{ github.event.inputs.tag }}" \
+          "${assets[@]}"
