@@ -1,60 +1,61 @@
-name: Build Phira-mp
+name: Build and Release phira-mp
 
 on:
   workflow_dispatch:
     inputs:
-      version:
-        description: "Tag name of release"
+      tag:
+        description: 'Release tag (e.g., v1.0.0)'
         required: true
 
 jobs:
   build:
+    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        arch: [x86_64-unknown-linux-gnu, i686-unknown-linux-gnu, armv5-unknown-linux-gnueabi, armv6-unknown-linux-gnueabi, armv7-unknown-linux-gnueabihf, aarch64-unknown-linux-gnu, riscv64-unknown-linux-gnu, mips64-unknown-linux-gnuabi64, mips64le-unknown-linux-gnuabi64, mipsel-unknown-linux-gnu, mips-unknown-linux-gnu, loongarch64-unknown-linux-gnu, s390x-unknown-linux-gnu, x86_64-pc-windows-msvc, i686-pc-windows-msvc, armv7-pc-windows-msvc, aarch64-pc-windows-msvc, aarch64-unknown-freebsd, aarch64-linux-android]
-
-    runs-on: ${{ matrix.os }}
+        arch: [amd64, arm64]
+        include:
+          - os: ubuntu-latest
+            arch: amd64
+          - os: ubuntu-latest
+            arch: arm64
+          - os: windows-latest
+            arch: amd64
+          - os: macos-latest
+            arch: amd64
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
       - name: Clone phira-mp repository
         run: git clone https://github.com/TeamFlos/phira-mp
 
-      - name: Set up Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          override: true
-          target: ${{ matrix.arch }}
-
       - name: Build phira-mp
         run: |
           cd phira-mp
-          cargo build --release -p phira-mp-server --target=${{ matrix.arch }}
+          cargo build --release -p phira-mp-server
 
-      - name: Upload Build Artifact
-        uses: actions/upload-artifact@v2
+      - name: Upload artifact
+        uses: actions/upload-artifact@v3
         with:
-          name: rust-project-${{ matrix.os }}-${{ matrix.arch }}
+          name: phira-mp-server
           path: phira-mp/target/release/phira-mp-server
 
-  publish:
-    if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.version }}
+  create_release:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - name: Download Build Artifact
-        uses: actions/download-artifact@v2
+      - name: Download artifact
+        uses: actions/download-artifact@v3
         with:
-          name: rust-project-${{ needs.build.outputs.artifact_name }}  # 确保与上一步的artifact name一致
+          name: phira-mp-server
           path: ./artifacts
 
-      - name: Upload Release
+      - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: ${{ github.event.inputs.version }}
-          files: ./artifacts/*
-          prerelease: false
+          tag_name: ${{ github.event.inputs.tag }}
+          files: ./artifacts/phira-mp-server  # 确保路径与下载的 artifact 匹配
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
