@@ -51,23 +51,68 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
-      - name: Install cross-compilation dependencies (Linux ARM64)
+      - name: Install cross-compilation tools
         if: matrix.os == 'ubuntu-latest' && matrix.arch == 'arm64'
         run: |
           sudo apt-get update
           sudo apt-get install -y gcc-aarch64-linux-gnu
+          sudo apt-get install -y libssl-dev pkg-config
+          sudo apt-get install -y gcc-multilib
+          cargo install cross
+
+      - name: Install OpenSSL (macOS)
+        if: matrix.os == 'macos-latest'
+        run: |
+          brew install openssl@3
+          echo 'export OPENSSL_ROOT_DIR="/usr/local/opt/openssl@3"' >> ~/.bash_profile
+          echo 'export OPENSSL_LIB_DIR="/usr/local/opt/openssl@3/lib"' >> ~/.bash_profile
+          echo 'export OPENSSL_INCLUDE_DIR="/usr/local/opt/openssl@3/include"' >> ~/.bash_profile
+          source ~/.bash_profile
+
+      - name: Install vcpkg (Windows)
+        if: matrix.os == 'windows-latest'
+        uses: lukka/run-vcpkg@v7
+        with:
+          setupOnly: true
+
+      - name: Install OpenSSL (Windows)
+        if: matrix.os == 'windows-latest'
+        run: |
+          vcpkg install openssl:x64-windows-static
+          echo "OPENSSL_DIR=$env:VCPKG_ROOT/installed/x64-windows-static" | Out-File -FilePath $env:GITHUB_ENV -Append
+          echo "OPENSSL_STATIC=1" | Out-File -FilePath $env:GITHUB_ENV -Append
 
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
         with:
           key: ${{ matrix.target }}
 
-      - name: Build phira-mp
+      - name: Build phira-mp (Linux native)
+        if: matrix.os == 'ubuntu-latest' && matrix.arch == 'amd64'
         run: |
           cd phira-mp
           cargo build --release -p phira-mp-server --target ${{ matrix.target }}
         env:
           CARGO_TARGET_DIR: target
+
+      - name: Build phira-mp (Linux ARM64)
+        if: matrix.os == 'ubuntu-latest' && matrix.arch == 'arm64'
+        run: |
+          cd phira-mp
+          cross build --release -p phira-mp-server --target ${{ matrix.target }}
+        env:
+          CARGO_TARGET_DIR: target
+          PKG_CONFIG_ALLOW_CROSS: 1
+          OPENSSL_STATIC: 1
+
+      - name: Build phira-mp (macOS/Windows)
+        if: matrix.os != 'ubuntu-latest'
+        run: |
+          cd phira-mp
+          cargo build --release -p phira-mp-server --target ${{ matrix.target }}
+        env:
+          CARGO_TARGET_DIR: target
+          OPENSSL_STATIC: 1
 
       - name: Prepare artifact
         shell: bash
