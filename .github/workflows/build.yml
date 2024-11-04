@@ -44,6 +44,7 @@ jobs:
           prepare: |
             pkg install -y node wget curl git rust
           run: |
+            set -x
             git clone https://github.com/TeamFlos/phira-mp
             cd phira-mp
             cargo build --release -p phira-mp-server
