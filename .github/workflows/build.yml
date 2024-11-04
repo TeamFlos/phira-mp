@@ -14,15 +14,17 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y libssl-dev pkg-config
 
-      - name: Set OpenSSL environment variable
-        run: echo "OPENSSL_DIR=/usr/include/openssl" >> $GITHUB_ENV
+      - name: Set OpenSSL environment variables
+        run: |
+          echo "OPENSSL_DIR=/usr" >> $GITHUB_ENV
+          echo "PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig" >> $GITHUB_ENV
 
       - name: Set up Rust
         uses: actions-rs/toolchain@v1
@@ -32,6 +34,9 @@ jobs:
 
       - name: Install cross
         run: cargo install cross
+
+      - name: Verify cross installation
+        run: cross --version
 
       - name: Build the project for multiple platforms
         run: |
