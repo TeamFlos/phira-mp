@@ -1,73 +1,75 @@
-name: Build and Release phira-mp
+name: Rust Build
 
 on:
   workflow_dispatch:
     inputs:
-      tag:
-        description: 'Release tag (e.g., v1.0.0)'
+      version:
+        description: "Tag name of release"
         required: true
 
 jobs:
   build:
-    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-        arch: [amd64, arm64]
+        os: [ubuntu-latest, windows-latest, macos-latest, freebsd-latest]
+        arch: [amd64, arm64, arm, 386, riscv64, mips64, mips64le, mipsle, mips, s390x, loong64]
         include:
+          # Include specific combinations
           - os: ubuntu-latest
-            arch: amd64
+            arch: arm
+            goarm: 7
           - os: ubuntu-latest
-            arch: arm64
+            arch: arm
+            goarm: 6
+          - os: ubuntu-latest
+            arch: arm
+            goarm: 5
           - os: windows-latest
-            arch: amd64
+            arch: arm64
           - os: macos-latest
-            arch: amd64
+            arch: arm64
+
+    runs-on: ${{ matrix.os }}
+    env:
+      CARGO_TARGET_DIR: target
+      BUILD_NAME: phira-mp-server-${{ matrix.os }}-${{ matrix.arch }}${{ matrix.os == 'windows-latest' && '.exe' || '' }}
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Clone phira-mp repository
-        run: git clone https://github.com/TeamFlos/phira-mp
-
-      - name: Build phira-mp
-        run: |
-          cd phira-mp
-          cargo build --release -p phira-mp-server
-
-      - name: Rename and prepare artifacts
-        run: |
-          mkdir -p artifacts
-          if [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
-            OS="linux"
-          elif [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-            OS="windows"
-          elif [[ "${{ matrix.os }}" == "macos-latest" ]]; then
-            OS="macos"
-          fi
-          mv phira-mp/target/release/phira-mp-server artifacts/phira-mp-server-${OS}-${{ matrix.arch }}
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v3
+      - name: Set up Rust
+        uses: actions/setup-rust@v1
         with:
-          name: phira-mp-server
-          path: artifacts/*  # 上传当前目录下的 artifacts 文件
+          toolchain: stable
 
-  create_release:
+      - name: Build
+        run: |
+          cargo build --release -p phira-mp-server
+          mv target/release/phira-mp-server $BUILD_NAME
+
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: $BUILD_NAME
+          path: $BUILD_NAME
+
+  Publish:
+    if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.version }}
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - name: Download artifacts
-        uses: actions/download-artifact@v3
+      - name: Download Build Artifacts
+        uses: actions/download-artifact@v4
         with:
-          name: phira-mp-server
-          path: ./artifacts
+          path: bin/
+          merge-multiple: true
 
-      - name: Create Release
-        uses: softprops/action-gh-release@v1
+      - name: Upload Release
+        uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.event.inputs.tag }}
-          files: ./artifacts/*  # 上传所有重命名后的 artifact
+          tag_name: ${{ github.event.inputs.version }}
+          files: bin/*
+          prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
