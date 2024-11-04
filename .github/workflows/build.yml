@@ -16,6 +16,9 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v2
 
+      - name: Install OpenSSL
+        run: sudo apt-get install -y libssl-dev
+
       - name: Set up Rust
         uses: actions-rs/toolchain@v1
         with:
@@ -42,12 +45,7 @@ jobs:
             target/x86_64-unknown-linux-gnu/release/phira-mp-server
             target/x86_64-unknown-linux-musl/release/phira-mp-server
             target/x86_64-unknown-freebsd/release/phira-mp-server
-          draft: false
-          prerelease: false
-          # 使用文件名格式区分不同平台
-          additional_files: |
-            target/x86_64-unknown-linux-gnu/release/phira-mp-server: linux-amd64-phira-mp-server
-            target/x86_64-unknown-linux-musl/release/phira-mp-server: linux-musl-amd64-phira-mp-server
-            target/x86_64-unknown-freebsd/release/phira-mp-server: freebsd-amd64-phira-mp-server
+        draft: false
+        prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
