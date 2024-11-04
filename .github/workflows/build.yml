@@ -1,153 +1,106 @@
-name: Rust Multi-Platform Build
+name: Build and Release phira-mp
 
 on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Tag name of release"
+        description: 'Release tag (e.g., v1.0.0)'
         required: true
-        type: string
-
-env:
-  CARGO_TERM_COLOR: always
-  CARGO_TARGET_DIR: target
 
 jobs:
   build:
+    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         include:
-          # Windows
-          - os: windows-latest
-            target: x86_64-pc-windows-msvc
-            suffix: .exe
-            name: windows-amd64-v1
-          - os: windows-latest
-            target: x86_64-pc-windows-msvc
-            suffix: .exe
-            rustflags: "-C target-cpu=x86-64-v3"
-            name: windows-amd64-v3
-          - os: windows-latest
-            target: i686-pc-windows-msvc
-            suffix: .exe
-            name: windows-386
-          - os: windows-latest
-            target: aarch64-pc-windows-msvc
-            suffix: .exe
-            name: windows-arm64
-          
-          # Linux
           - os: ubuntu-latest
+            arch: amd64
             target: x86_64-unknown-linux-gnu
-            name: linux-amd64-v1
+            binary: phira-mp-server
+            artifact: phira-mp-server-linux-amd64
           - os: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
-            rustflags: "-C target-cpu=x86-64-v3"
-            name: linux-amd64-v3
-          - os: ubuntu-latest
-            target: i686-unknown-linux-gnu
-            name: linux-386
-          - os: ubuntu-latest
+            arch: arm64
             target: aarch64-unknown-linux-gnu
-            name: linux-arm64
-          - os: ubuntu-latest
-            target: arm-unknown-linux-gnueabihf
-            name: linux-arm-7
-          - os: ubuntu-latest
-            target: s390x-unknown-linux-gnu
-            name: linux-s390x
-          
-          # macOS
+            binary: phira-mp-server
+            artifact: phira-mp-server-linux-arm64
+          - os: windows-latest
+            arch: amd64
+            target: x86_64-pc-windows-msvc
+            binary: phira-mp-server.exe
+            artifact: phira-mp-server-windows-amd64.exe
           - os: macos-latest
+            arch: amd64
             target: x86_64-apple-darwin
-            name: darwin-amd64-v1
+            binary: phira-mp-server
+            artifact: phira-mp-server-macos-amd64
           - os: macos-latest
-            target: x86_64-apple-darwin
-            rustflags: "-C target-cpu=x86-64-v3"
-            name: darwin-amd64-v3
-          - os: macos-latest
+            arch: arm64
             target: aarch64-apple-darwin
-            name: darwin-arm64
-          
-          # Android ARM64
-          - os: ubuntu-latest
-            target: aarch64-linux-android
-            name: android-arm64
+            binary: phira-mp-server
+            artifact: phira-mp-server-macos-arm64
 
-    runs-on: ${{ matrix.os }}
-    
     steps:
-    - uses: actions/checkout@v4
-    
-    - name: Install Rust
-      uses: dtolnay/rust-toolchain@stable
-      with:
-        targets: ${{ matrix.target }}
-    
-    - name: Install cross-compilation dependencies
-      if: runner.os == 'Linux' && matrix.target != 'x86_64-unknown-linux-gnu'
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y gcc-multilib
-        case ${{ matrix.target }} in
-          "aarch64-unknown-linux-gnu") sudo apt-get install -y gcc-aarch64-linux-gnu ;;
-          "arm-unknown-linux-gnueabihf") sudo apt-get install -y gcc-arm-linux-gnueabihf ;;
-          "s390x-unknown-linux-gnu") sudo apt-get install -y gcc-s390x-linux-gnu ;;
-        esac
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Rust Cache
-      uses: Swatinem/rust-cache@v2
-      with:
-        key: ${{ matrix.target }}
+      - name: Clone phira-mp repository
+        run: git clone https://github.com/TeamFlos/phira-mp
 
-    - name: Install cross
-      if: runner.os == 'Linux' && matrix.target != 'x86_64-unknown-linux-gnu'
-      run: |
-        cargo install cross
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
 
-    - name: Build
-      env:
-        RUSTFLAGS: ${{ matrix.rustflags }}
-      run: |
-        if [[ "${{ runner.os }}" == "Linux" && "${{ matrix.target }}" != "x86_64-unknown-linux-gnu" ]]; then
-          cross build --release -p phira-mp-server --target ${{ matrix.target }}
-        else
+      - name: Install cross-compilation dependencies (Linux ARM64)
+        if: matrix.os == 'ubuntu-latest' && matrix.arch == 'arm64'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      - name: Build phira-mp
+        run: |
+          cd phira-mp
           cargo build --release -p phira-mp-server --target ${{ matrix.target }}
-        fi
-      shell: bash
+        env:
+          CARGO_TARGET_DIR: target
 
-    - name: Prepare artifact
-      shell: bash
-      run: |
-        binary_name="phira-mp-server-${{ matrix.name }}${{ matrix.suffix }}"
-        cp "target/${{ matrix.target }}/release/phira-mp-server${{ matrix.suffix }}" "$binary_name"
-        if [[ "${{ runner.os }}" == "Linux" ]]; then
-          strip "$binary_name" || true
-        fi
+      - name: Prepare artifact
+        shell: bash
+        run: |
+          cd phira-mp
+          cp "target/${{ matrix.target }}/release/${{ matrix.binary }}" "../${{ matrix.artifact }}"
+          if [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
+            strip "../${{ matrix.artifact }}" || true
+          fi
 
-    - name: Upload artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: phira-mp-server-${{ matrix.name }}${{ matrix.suffix }}
-        path: phira-mp-server-${{ matrix.name }}${{ matrix.suffix }}
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.artifact }}
 
-  create-release:
+  create_release:
     needs: build
     runs-on: ubuntu-latest
     permissions:
       contents: write
     
     steps:
-    - name: Download artifacts
-      uses: actions/download-artifact@v4
-      with:
-        path: artifacts/
-        merge-multiple: true
-      
-    - name: Create Release
-      uses: softprops/action-gh-release@v2
-      with:
-        tag_name: ${{ github.event.inputs.tag }}
-        name: Release ${{ github.event.inputs.tag }}
-        files: artifacts/*
-        prerelease: false
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+          merge-multiple: true
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.tag }}
+          name: "Release ${{ github.event.inputs.tag }}"
+          files: artifacts/*
+          prerelease: false
