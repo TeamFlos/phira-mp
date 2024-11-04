@@ -17,10 +17,10 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3  # 更新为 v3
 
       - name: Set up Rust
-        uses: actions-rs/toolchain@v1
+        uses: actions-rs/toolchain@v2  # 更新为 v2
         with:
           toolchain: stable
           override: true
@@ -36,7 +36,7 @@ jobs:
           cp phira-mp/target/release/phira-mp-server target/$ARTIFACT_NAME
 
       - name: Upload Release Asset
-        uses: actions/upload-artifact@v3  # 更新版本到 v3
+        uses: actions/upload-artifact@v3
         with:
           name: ${{ github.event.inputs.release_tag }}
           path: target/phira-mp-server-${{ matrix.os }}-${{ matrix.arch }}
@@ -46,13 +46,13 @@ jobs:
     runs-on: ubuntu-latest  # FreeBSD 需要单独的 VM
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3  # 更新为 v3
 
       - name: Setup FreeBSD VM
         uses: vmactions/freebsd-vm@v1
 
       - name: Set up Rust
-        uses: actions-rs/toolchain@v1
+        uses: actions-rs/toolchain@v2  # 更新为 v2
         with:
           toolchain: stable
           override: true
@@ -68,7 +68,7 @@ jobs:
           cp phira-mp/target/release/phira-mp-server target/$ARTIFACT_NAME
 
       - name: Upload FreeBSD Release Asset
-        uses: actions/upload-artifact@v3  # 更新版本到 v3
+        uses: actions/upload-artifact@v3
         with:
           name: ${{ github.event.inputs.release_tag }}-freebsd
           path: target/phira-mp-server-freebsd-x64
