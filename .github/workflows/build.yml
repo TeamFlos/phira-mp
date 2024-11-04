@@ -45,7 +45,8 @@ jobs:
             target/x86_64-unknown-linux-gnu/release/phira-mp-server
             target/x86_64-unknown-linux-musl/release/phira-mp-server
             target/x86_64-unknown-freebsd/release/phira-mp-server
-        draft: false
-        prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Set draft and prerelease
+        run: echo "This action does not support draft or prerelease directly"
+        if: false
