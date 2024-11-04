@@ -1,84 +1,116 @@
-name: Rust Build
+name: Build Release
 
 on:
   workflow_dispatch:
     inputs:
-      version:
-        description: "Tag name of release"
+      tag:
+        description: 'Release Tag'
         required: true
+        type: string
 
 jobs:
-  build:
+  build-standard:
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest, freebsd-latest]
-        arch: [amd64, arm64, arm, 386, riscv64, mips64, mips64le, mipsle, mips, s390x, loong64]
         include:
-          # Include specific combinations
+          # Linux builds
           - os: ubuntu-latest
-            arch: arm
-            goarm: 7
+            target: x86_64-unknown-linux-gnu
+            name: linux-x86_64
           - os: ubuntu-latest
-            arch: arm
-            goarm: 6
-          - os: ubuntu-latest
-            arch: arm
-            goarm: 5
+            target: aarch64-unknown-linux-gnu
+            name: linux-aarch64
+          # Windows builds
           - os: windows-latest
-            arch: arm64
+            target: x86_64-pc-windows-msvc
+            name: windows-x86_64
+          - os: windows-latest
+            target: aarch64-pc-windows-msvc
+            name: windows-aarch64
+          # macOS builds
           - os: macos-latest
-            arch: arm64
+            target: x86_64-apple-darwin
+            name: macos-x86_64
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            name: macos-aarch64
 
     runs-on: ${{ matrix.os }}
-    env:
-      CARGO_TARGET_DIR: target
-      BUILD_NAME: phira-mp-server-${{ matrix.os }}-${{ matrix.arch }}${{ matrix.os == 'windows-latest' && '.exe' || '' }}
-
+    
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Rust
+      - uses: actions/checkout@v4
+        with:
+          repository: 'TeamFlos/phira-mp'
+          
+      - name: Setup Rust
         uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
+          target: ${{ matrix.target }}
           override: true
-          components: rustfmt, clippy
-
-      - name: Build
+          
+      - name: Build for ${{ matrix.name }}
+        run: cargo build --release -p phira-mp-server --target ${{ matrix.target }}
+        
+      - name: Prepare artifact (Unix)
+        if: runner.os != 'Windows'
         run: |
-          cargo build --release -p phira-mp-server
-
-      - name: Move Build Artifact
+          cd target/${{ matrix.target }}/release
+          mv phira-mp-server phira-mp-server-${{ matrix.name }}
+          
+      - name: Prepare artifact (Windows)
+        if: runner.os == 'Windows'
         run: |
-          if [ "${{ matrix.os }}" != "windows-latest" ]; then
-            mv target/release/phira-mp-server $BUILD_NAME
-          else
-            Move-Item -Path target\release\phira-mp-server.exe -Destination $BUILD_NAME
-          fi
-
-      - name: Upload Build Artifact
-        uses: actions/upload-artifact@v4
+          cd target/${{ matrix.target }}/release
+          mv phira-mp-server.exe phira-mp-server-${{ matrix.name }}.exe
+          
+      - name: Upload artifact
+        uses: actions/upload-artifact@v3
         with:
-          name: $BUILD_NAME
-          path: $BUILD_NAME
+          name: phira-mp-server-${{ matrix.name }}
+          path: target/${{ matrix.target }}/release/phira-mp-server-${{ matrix.name }}*
 
-  Publish:
-    if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.version }}
-    needs: build
+  build-freebsd:
     runs-on: ubuntu-latest
+    
     steps:
-      - name: Download Build Artifacts
-        uses: actions/download-artifact@v4
+      - uses: actions/checkout@v4
         with:
-          path: bin/
-          merge-multiple: true
+          repository: 'TeamFlos/phira-mp'
+          
+      - name: Build on FreeBSD
+        uses: vmactions/freebsd-vm@v1
+        with:
+          usesh: true
+          prepare: |
+            pkg install -y curl
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+            source $HOME/.cargo/env
+          run: |
+            source $HOME/.cargo/env
+            cargo build --release -p phira-mp-server
+            cd target/release
+            mv phira-mp-server phira-mp-server-freebsd-x86_64
+            
+      - name: Upload FreeBSD artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: phira-mp-server-freebsd-x86_64
+          path: target/release/phira-mp-server-freebsd-x86_64
 
-      - name: Upload Release
-        uses: softprops/action-gh-release@v2
+  create-release:
+    needs: [build-standard, build-freebsd]
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v3
+        
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
         with:
-          tag_name: ${{ github.event.inputs.version }}
-          files: bin/*
-          prerelease: false
+          tag_name: ${{ github.event.inputs.tag }}
+          files: |
+            phira-mp-server-*/phira-mp-server-*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
