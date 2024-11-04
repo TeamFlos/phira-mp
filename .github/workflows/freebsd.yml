@@ -1,0 +1,31 @@
+name: Build on FreeBSD
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest  # 主机上运行的环境
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build phira-mp on FreeBSD
+        uses: vmactions/freebsd-vm@v1
+        with:
+          usesh: true
+          release: "13.2"  # 指定 FreeBSD 版本
+          prepare: |
+            pkg install -y git rust cargo  # 安装构建所需工具
+          run: |
+            git clone https://github.com/TeamFlos/phira-mp
+            cd phira-mp
+            cargo build --release -p phira-mp-server  # 构建命令
+
+      - name: Upload Artifacts
+        if: success()  # 如果构建成功
+        uses: actions/upload-artifact@v3
+        with:
+          name: phira-mp-server
+          path: |
+            phira-mp/target/release/phira-mp-server  # 上传构建产物
