@@ -13,16 +13,22 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        arch: [amd64, arm64]  # 适用于 Linux
         include:
           - os: ubuntu-latest
-            arch: amd64
-          - os: ubuntu-latest
-            arch: arm64
           - os: windows-latest
-            arch: amd64
           - os: macos-latest
-            arch: amd64
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Clone phira-mp repository
+        run: git clone https://github.com/TeamFlos/phira-mp
+
+      - name: Build phira-mp
+        run: |
+          cd phira-mp
+          cargo build --release -p phira-mp-server
 
   freebsd_build:
     runs-on: ubuntu-latest
