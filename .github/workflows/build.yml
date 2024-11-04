@@ -13,29 +13,16 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        arch: [amd64, arm64, arm32]
+        arch: [amd64, arm64]  # 适用于 Linux
         include:
           - os: ubuntu-latest
             arch: amd64
-            target: x86_64-unknown-linux-gnu
           - os: ubuntu-latest
             arch: arm64
-            target: aarch64-unknown-linux-gnu
-          - os: ubuntu-latest
-            arch: arm32
-            target: armv7-unknown-linux-gnueabihf
           - os: windows-latest
             arch: amd64
-            target: x86_64-pc-windows-msvc
-          - os: windows-latest
-            arch: arm64
-            target: aarch64-pc-windows-msvc
           - os: macos-latest
             arch: amd64
-            target: x86_64-apple-darwin
-          - os: macos-latest
-            arch: arm64
-            target: aarch64-apple-darwin
 
     steps:
       - name: Checkout code
@@ -47,20 +34,18 @@ jobs:
       - name: Build phira-mp
         run: |
           cd phira-mp
-          cargo build --release -p phira-mp-server --target ${{ matrix.target }}
+          cargo build --release -p phira-mp-server
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: phira-mp-server
+          path: phira-mp/target/release/phira-mp-server
 
   create_release:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - name: Upload artifacts from build
-        if: success() && github.ref == 'refs/heads/main'  # Optional: Adjust condition as needed
-        uses: actions/upload-artifact@v3
-        with:
-          name: phira-mp-server
-          path: |
-            phira-mp/target/release/phira-mp-server
-
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
