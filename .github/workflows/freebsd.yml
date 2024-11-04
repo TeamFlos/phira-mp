@@ -20,10 +20,11 @@ jobs:
           usesh: true
           release: "14.1"  # 指定 FreeBSD 版本
           prepare: |
-            pkg update
+            pkg update  # 更新包索引
             pkg install -y git curl
-            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-            source $HOME/.cargo/env
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y  # 安装 Rust 和 Cargo
+            export PATH="$HOME/.cargo/bin:$PATH"  # 添加 Cargo 到 PATH
+
 
           run: |
             git clone https://github.com/TeamFlos/phira-mp
