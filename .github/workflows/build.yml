@@ -1,4 +1,4 @@
-name: Cross-Compile Rust Project
+name: Build Phira-mp
 
 on:
   workflow_dispatch:
@@ -46,9 +46,10 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v2
+      - name: Download Build Artifact
+        uses: actions/download-artifact@v2
         with:
-          name: rust-project
+          name: rust-project-${{ needs.build.outputs.artifact_name }}  # 确保与上一步的artifact name一致
           path: ./artifacts
 
       - name: Upload Release
