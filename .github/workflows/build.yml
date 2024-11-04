@@ -16,29 +16,31 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v2
 
+      - name: Clone phira-mp repository
+        run: |
+          git clone https://github.com/TeamFlos/phira-mp.git
+          cd phira-mp
+          cargo update
+
       - name: Set up Rust
         uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
           override: true
-          override-file: Cargo.toml
+          override-file: phira-mp/Cargo.toml
 
       - name: Install cross
         run: |
           cargo install cross
 
-      - name: Build for Windows amd64
-        run: |
-          cross build --release --target x86_64-pc-windows-gnu -p phira-mp-server
-        env:
-          CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER: x86_64-w64-mingw32-gcc
-
       - name: Build for Linux amd64
         run: |
+          cd phira-mp
           cross build --release --target x86_64-unknown-linux-gnu -p phira-mp-server
 
       - name: Build for FreeBSD amd64
         run: |
+          cd phira-mp
           cross build --release --target x86_64-unknown-freebsd -p phira-mp-server
 
       - name: Create Release
@@ -52,19 +54,11 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Upload Windows artifact
-        uses: actions/upload-release-asset@v1
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: target/x86_64-pc-windows-gnu/release/phira-mp-server.exe
-          asset_name: phira-mp-server-windows-amd64.exe
-          asset_content_type: application/octet-stream
-
       - name: Upload Linux artifact
         uses: actions/upload-release-asset@v1
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: target/x86_64-unknown-linux-gnu/release/phira-mp-server
+          asset_path: phira-mp/target/x86_64-unknown-linux-gnu/release/phira-mp-server
           asset_name: phira-mp-server-linux-amd64
           asset_content_type: application/octet-stream
 
@@ -72,6 +66,6 @@ jobs:
         uses: actions/upload-release-asset@v1
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: target/x86_64-unknown-freebsd/release/phira-mp-server
+          asset_path: phira-mp/target/x86_64-unknown-freebsd/release/phira-mp-server
           asset_name: phira-mp-server-freebsd-amd64
           asset_content_type: application/octet-stream
