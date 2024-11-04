@@ -17,10 +17,10 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3  # 更新为 v3
+        uses: actions/checkout@v3  # 使用最新版本
 
       - name: Set up Rust
-        uses: actions-rs/toolchain@v2  # 更新为 v2
+        uses: actions-rs/toolchain@v1  # 使用 v1 版本
         with:
           toolchain: stable
           override: true
@@ -46,13 +46,13 @@ jobs:
     runs-on: ubuntu-latest  # FreeBSD 需要单独的 VM
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3  # 更新为 v3
+        uses: actions/checkout@v3  # 使用最新版本
 
       - name: Setup FreeBSD VM
         uses: vmactions/freebsd-vm@v1
 
       - name: Set up Rust
-        uses: actions-rs/toolchain@v2  # 更新为 v2
+        uses: actions-rs/toolchain@v1  # 使用 v1 版本
         with:
           toolchain: stable
           override: true
