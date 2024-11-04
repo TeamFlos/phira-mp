@@ -33,11 +33,15 @@ jobs:
         run: |
           cargo install cross
 
-      - name: Build for multiple targets
+      - name: Build for Linux amd64
+        run: |
+          cd phira-mp
+          cargo build --release -p phira-mp-server
+
+      - name: Build for other targets using cross
         run: |
           cd phira-mp
           targets=(
-            "x86_64-unknown-linux-gnu"  # Linux amd64
             "x86_64-unknown-freebsd"     # FreeBSD amd64
             "aarch64-apple-darwin"       # Darwin arm64
             "i686-unknown-linux-gnu"     # Linux 386
