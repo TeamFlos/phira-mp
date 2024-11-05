@@ -59,13 +59,13 @@ jobs:
             cp target/release/phira-mp-server build_output/${{ matrix.platform }}/
           
       - name: Upload artifacts
-        run: |
-          echo "Uploading build artifacts"
-          tar -czf build_output.tar.gz build_output/
         uses: actions/upload-artifact@v3
         with:
           name: build-artifacts
           path: build_output.tar.gz
+        run: |
+          echo "Uploading build artifacts"
+          tar -czf build_output.tar.gz build_output/
 
   release:
     needs: build
