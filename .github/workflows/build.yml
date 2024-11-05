@@ -96,10 +96,42 @@ jobs:
           name: freebsd-amd64-artifact
           path: build_output/freebsd-amd64/phira-mp-server-freebsd-amd64
 
+  build_aarch64:
+    name: Build for aarch64
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Build project for aarch64
+        uses: uraimo/run-on-arch-action@v2
+        id: runcmd
+        with:
+          arch: aarch64
+          distro: ubuntu22.04
+          githubToken: ${{ github.token }}
+          run: |
+            cargo build --release -p phira-mp-server
+
+      - name: Archive build artifact
+        run: |
+          mkdir -p build_output/aarch64
+          cp target/aarch64-unknown-linux-gnu/release/phira-mp-server build_output/aarch64/
+
+      - name: Rename Artifact
+        run: |
+          mv build_output/aarch64/phira-mp-server build_output/aarch64/phira-mp-server-aarch64
+
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: aarch64-artifact
+          path: build_output/aarch64/phira-mp-server-aarch64
+
   publish:
     permissions: write-all
     if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.release_tag }}
-    needs: [build_windows, build_linux, build_freebsd]
+    needs: [build_windows, build_linux, build_freebsd, build_aarch64]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
