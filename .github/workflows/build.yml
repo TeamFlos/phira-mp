@@ -3,124 +3,66 @@ name: Build and Release
 on:
   workflow_dispatch:
     inputs:
-      tag:
-        description: 'Release tag'
-        required: true
+      release_tag:
+        description: 'Release Tag'
+        required: false
         default: 'v1.0.0'
 
 jobs:
-  build-native:
-    strategy:
-      matrix:
-        include:
-          - os: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
-            name: linux-amd64
-            use_cross: false
-          - os: ubuntu-latest
-            target: aarch64-unknown-linux-gnu
-            name: linux-arm64
-            use_cross: true
-          - os: windows-latest
-            target: x86_64-pc-windows-msvc
-            name: windows-amd64
-            use_cross: false
-          - os: windows-latest
-            target: aarch64-pc-windows-msvc
-            name: windows-arm64
-            use_cross: false
+  build:
+    runs-on: ubuntu-latest
 
-    runs-on: ${{ matrix.os }}
-    
     steps:
-      - uses: actions/checkout@v4
-        with:
-          repository: 'TeamFlos/phira-mp'
-      
-      - name: Setup Rust
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Set up Rust
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: stable
-          target: ${{ matrix.target }}
+          toolchain: nightly
           override: true
-      
-      - name: Install Linux Dependencies (AMD64)
-        if: runner.os == 'Linux' && matrix.target == 'x86_64-unknown-linux-gnu'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y pkg-config libssl-dev
+          components: rustfmt
 
       - name: Install cross
-        if: matrix.use_cross
-        run: cargo install cross
-      
-      - name: Build with cross
-        if: matrix.use_cross
         run: |
-          cross build --release --target ${{ matrix.target }}
+          cargo install cross
 
-      - name: Build with cargo
-        if: "!matrix.use_cross"
-        run: |
-          cargo build --release --target ${{ matrix.target }}
-        
-      - name: Rename artifacts
-        shell: bash
-        run: |
-          if [ "${{ runner.os }}" = "Windows" ]; then
-            mv target/${{ matrix.target }}/release/phira-mp-server.exe phira-mp-server-${{ matrix.name }}.exe
-          else
-            mv target/${{ matrix.target }}/release/phira-mp-server phira-mp-server-${{ matrix.name }}
-          fi
-      
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v3
-        with:
-          name: phira-mp-server-${{ matrix.name }}
-          path: |
-            phira-mp-server-${{ matrix.name }}
-            phira-mp-server-${{ matrix.name }}.exe
-          if-no-files-found: ignore
+      - name: Build for Windows AMD64
+        run: cross build --release -p phira-mp-server --target x86_64-pc-windows-msvc
 
-  build-freebsd:
-    runs-on: ubuntu-latest
-    
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          repository: 'TeamFlos/phira-mp'
-      
-      - name: Install cross
-        run: cargo install cross
-      
-      - name: Build FreeBSD
-        run: |
-          cross build --release --target x86_64-unknown-freebsd
-      
-      - name: Rename artifacts
-        run: |
-          mv target/x86_64-unknown-freebsd/release/phira-mp-server phira-mp-server-freebsd-amd64
-      
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v3
-        with:
-          name: phira-mp-server-freebsd-amd64
-          path: phira-mp-server-freebsd-amd64
+      - name: Build for Linux AMD64
+        run: cross build --release -p phira-mp-server --target x86_64-unknown-linux-gnu
 
-  create-release:
-    needs: [build-native, build-freebsd]
-    runs-on: ubuntu-latest
-    
-    steps:
-      - name: Download all artifacts
-        uses: actions/download-artifact@v3
-      
+      - name: Build for Linux Arm64
+        run: cross build --release -p phira-mp-server --target aarch64-unknown-linux-gnu
+
+      - name: Build for macOS AMD64
+        run: cross build --release -p phira-mp-server --target x86_64-apple-darwin
+
+      - name: Build for macOS Arm64
+        run: cross build --release -p phira-mp-server --target aarch64-apple-darwin
+
+      - name: Build for FreeBSD AMD64
+        run: cross build --release -p phira-mp-server --target x86_64-unknown-freebsd
+
+      - name: Build for FreeBSD Arm64
+        run: cross build --release -p phira-mp-server --target aarch64-unknown-freebsd
+
+      - name: Rename binaries
+        run: |
+          mkdir -p release
+          cp target/x86_64-pc-windows-msvc/release/phira-mp-server release/phira-mp-server-windows-amd64.exe
+          cp target/x86_64-unknown-linux-gnu/release/phira-mp-server release/phira-mp-server-linux-amd64
+          cp target/aarch64-unknown-linux-gnu/release/phira-mp-server release/phira-mp-server-linux-arm64
+          cp target/x86_64-apple-darwin/release/phira-mp-server release/phira-mp-server-macos-amd64
+          cp target/aarch64-apple-darwin/release/phira-mp-server release/phira-mp-server-macos-arm64
+          cp target/x86_64-unknown-freebsd/release/phira-mp-server release/phira-mp-server-freebsd-amd64
+          cp target/aarch64-unknown-freebsd/release/phira-mp-server release/phira-mp-server-freebsd-arm64
+
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: ${{ github.event.inputs.tag }}
-          generate_release_notes: true
-          files: |
-            */phira-mp-server-*
+          tag: ${{ github.event.inputs.release_tag }}
+          files: release/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
