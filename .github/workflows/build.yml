@@ -10,7 +10,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.platform == 'windows-amd64' || matrix.platform == 'windows-arm64' ? 'windows-latest' : 'ubuntu-latest' }}
     strategy:
       matrix:
         platform:
@@ -20,7 +20,8 @@ jobs:
           - linux-arm64
           - macos-amd64
           - macos-arm64
-          - freebsd-amd64  # 只构建FreeBSD的AMD64版本
+          - freebsd-amd64  # Only build FreeBSD AMD64 version
+    
     name: Build for ${{ matrix.platform }}
     
     steps:
