@@ -39,11 +39,6 @@ jobs:
         run: |
           cargo install cross
 
-      - name: Install rust targets (for other platforms)
-        if: matrix.platform != 'freebsd/amd64' && matrix.platform != 'freebsd/arm64'
-        run: |
-          rustup target add ${{ matrix.platform }}
-
       - name: Build project for ${{ matrix.platform }}
         run: |
           if [[ "${{ matrix.platform }}" == "freebsd/amd64" || "${{ matrix.platform }}" == "freebsd/arm64" ]]; then
