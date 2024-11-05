@@ -9,9 +9,8 @@ on:
         default: 'v1.0.0'
 
 jobs:
-  build:
+  build-linux:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v2
@@ -42,31 +41,58 @@ jobs:
           cd phira-mp
           cargo build --release -p phira-mp-server
 
-      - name: Build for other targets using cross
+  build-others:
+    runs-on: ubuntu-latest
+    needs: build-linux
+    strategy:
+      matrix:
+        target:
+          - "x86_64-unknown-freebsd"     # FreeBSD amd64
+          - "aarch64-apple-darwin"       # Darwin arm64
+          - "i686-unknown-linux-gnu"     # Linux 386
+          - "armv5te-unknown-linux-gnueabi"  # Linux armv5
+          - "armv6-unknown-linux-gnueabi"    # Linux armv6
+          - "armv7-unknown-linux-gnueabihf"  # Linux armv7
+          - "aarch64-unknown-linux-gnu"       # Linux arm64
+          - "riscv64gc-unknown-linux-gnu"      # RISC-V
+          - "mips-unknown-linux-gnu"           # MIPS
+          - "mipsel-unknown-linux-gnu"         # MIPSel
+          - "mips64-unknown-linux-gnu"         # MIPS64
+          - "mips64el-unknown-linux-gnu"       # MIPS64el
+          - "loongarch64-unknown-linux-gnu"    # LoongArch
+          - "s390x-unknown-linux-gnu"          # S390X
+          - "aarch64-unknown-freebsd"          # FreeBSD arm64
+          - "aarch64-linux-android"             # Android arm64
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Clone phira-mp repository
+        run: |
+          git clone https://github.com/TeamFlos/phira-mp.git
+          cd phira-mp
+          cargo update
+
+      - name: Set up Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+          override-file: phira-mp/Cargo.toml
+
+      - name: Install cross
+        run: |
+          cargo install cross
+
+      - name: Build for ${{ matrix.target }}
         run: |
           cd phira-mp
-          targets=(
-            "x86_64-unknown-freebsd"     # FreeBSD amd64
-            "aarch64-apple-darwin"       # Darwin arm64
-            "i686-unknown-linux-gnu"     # Linux 386
-            "armv5te-unknown-linux-gnueabi"  # Linux armv5
-            "armv6-unknown-linux-gnueabi"    # Linux armv6
-            "armv7-unknown-linux-gnueabihf"  # Linux armv7
-            "aarch64-unknown-linux-gnu"       # Linux arm64
-            "riscv64gc-unknown-linux-gnu"      # RISC-V
-            "mips-unknown-linux-gnu"           # MIPS
-            "mipsel-unknown-linux-gnu"         # MIPSel
-            "mips64-unknown-linux-gnu"         # MIPS64
-            "mips64el-unknown-linux-gnu"       # MIPS64el
-            "loongarch64-unknown-linux-gnu"    # LoongArch
-            "s390x-unknown-linux-gnu"          # S390X
-            "aarch64-unknown-freebsd"          # FreeBSD arm64
-            "aarch64-linux-android"             # Android arm64
-          )
-          for target in "${targets[@]}"; do
-            cross build --release --target "$target" -p phira-mp-server
-          done
+          cross build --release --target "${{ matrix.target }}" -p phira-mp-server
 
+  create-release:
+    runs-on: ubuntu-latest
+    needs: build-others
+    steps:
       - name: Create Release
         id: create_release
         uses: actions/create-release@v1
@@ -78,10 +104,14 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+  upload-artifacts:
+    runs-on: ubuntu-latest
+    needs: create-release
+    steps:
       - name: Upload artifacts
         run: |
           cd phira-mp
-          for target in "${targets[@]}"; do
+          for target in "${{ matrix.target }}"; do
             asset_name="phira-mp-server-${target//-/_}"
             asset_path="target/${target}/release/phira-mp-server"
             if [ -f "$asset_path" ]; then
