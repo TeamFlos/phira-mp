@@ -58,14 +58,16 @@ jobs:
             # For other platforms, copy from the default release directory
             cp target/release/phira-mp-server build_output/${{ matrix.platform }}/
           
+      - name: Create archive for uploaded artifacts
+        run: |
+          echo "Creating tarball for build artifacts"
+          tar -czf build_output.tar.gz -C build_output .
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v3
         with:
           name: build-artifacts
           path: build_output.tar.gz
-        run: |
-          echo "Uploading build artifacts"
-          tar -czf build_output.tar.gz build_output/
 
   release:
     needs: build
