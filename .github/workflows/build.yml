@@ -51,7 +51,7 @@ jobs:
       - name: Archive build artifact
         run: |
           mkdir -p build_output/${{ matrix.platform }}
-          cp target/${{ matrix.platform }}/release/phira-mp-server build_output/${{ matrix.platform }}/
+          cp target/release/phira-mp-server build_output/${{ matrix.platform }}/
 
   release:
     needs: build
