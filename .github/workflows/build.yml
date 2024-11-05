@@ -51,7 +51,13 @@ jobs:
       - name: Archive build artifact
         run: |
           mkdir -p build_output/${{ matrix.platform }}
-          cp target/release/phira-mp-server build_output/${{ matrix.platform }}/
+          if [[ "${{ matrix.platform }}" == "freebsd/amd64" ]]; then
+            # For FreeBSD, copy the artifact from the cross target directory
+            cp target/x86_64-unknown-freebsd/release/phira-mp-server build_output/${{ matrix.platform }}/
+          else
+            # For other platforms, copy from the default release directory
+            cp target/release/phira-mp-server build_output/${{ matrix.platform }}/
+          fi
 
   release:
     needs: build
