@@ -32,8 +32,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y pkg-config libssl-dev
           
-      - name: Install cross (for FreeBSD only)
-        if: matrix.platform == 'freebsd-amd64'
+      - name: Install cross
         run: |
           cargo install cross
           
@@ -43,8 +42,8 @@ jobs:
             # For FreeBSD, use cross for building (only AMD64)
             cross build --release -p phira-mp-server --target x86_64-unknown-freebsd
           else
-            # For other platforms (Linux, macOS), use native cargo build
-            cargo build --release -p phira-mp-server
+            # For other platforms (Linux, macOS), use cross for building
+            cross build --release -p phira-mp-server --target ${{ matrix.platform }}
           fi
 
       - name: Archive build artifact
@@ -55,7 +54,7 @@ jobs:
             cp target/x86_64-unknown-freebsd/release/phira-mp-server build_output/${{ matrix.platform }}/
           else
             # For other platforms, copy from the default release directory
-            cp target/release/phira-mp-server build_output/${{ matrix.platform }}/
+            cp target/${{ matrix.platform }}/release/phira-mp-server build_output/${{ matrix.platform }}/
           fi
 
       - name: Rename Artifact
