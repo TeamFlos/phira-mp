@@ -38,9 +38,16 @@ jobs:
         if: matrix.platform == 'freebsd/amd64' || matrix.platform == 'freebsd/arm64'
         run: |
           cargo install cross
-          rustup target add x86_64-unknown-freebsd
+
+      - name: Install rust targets (for other platforms)
+        if: matrix.platform != 'freebsd/amd64' && matrix.platform != 'freebsd/arm64'
+        run: |
+          rustup target add ${{ matrix.platform }}
+
+      - name: Install FreeBSD ARM64 target (if needed)
+        if: matrix.platform == 'freebsd/arm64'
+        run: |
           rustup target add aarch64-unknown-freebsd
-          rustc --print=target-list
 
       - name: Build project for ${{ matrix.platform }}
         run: |
