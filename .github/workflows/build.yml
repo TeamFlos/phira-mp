@@ -3,112 +3,180 @@ name: Cross-Compile and Release
 on:
   workflow_dispatch:
     inputs:
-      release_tag:
+      version:
         description: 'Release Tag'
-        required: false
+        required: true
         default: 'v1.0.0'
 
 jobs:
-  build:
+  # Linux 构建（AMD64 & ARM64）
+  build_linux:
     runs-on: ubuntu-latest
 
     steps:
-      # 克隆仓库
       - name: Checkout repository
         uses: actions/checkout@v2
 
-      # 安装 Rust 和 cross
       - name: Install Rust and Cross
         run: |
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
           source $HOME/.cargo/env
           cargo install cross
 
-      # 构建 Linux, MacOS, FreeBSD (AMD64 和 ARM64)
-      - name: Cross compile for Linux, MacOS, FreeBSD
+      - name: Build for Linux (AMD64 & ARM64)
         run: |
-          # Clone the repo and navigate to the directory
           git clone https://github.com/TeamFlos/phira-mp.git
           cd phira-mp
-          
-          # Build for Linux (AMD64 & ARM64)
           cross build --target x86_64-unknown-linux-gnu --release
           cross build --target aarch64-unknown-linux-gnu --release
-          
-          # Build for MacOS (AMD64 & ARM64)
+
+      - name: Archive Linux build artifacts
+        run: |
+          mkdir -p bin
+          mv target/x86_64-unknown-linux-gnu/release/phira-mp-server bin/phira-mp-linux-x86_64
+          mv target/aarch64-unknown-linux-gnu/release/phira-mp-server bin/phira-mp-linux-arm64
+
+      - name: Upload Linux build artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: phira-mp-linux-artifacts
+          path: bin/
+
+  # MacOS 构建（AMD64 & ARM64）
+  build_macos:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Install Rust and Cross
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+          source $HOME/.cargo/env
+          cargo install cross
+
+      - name: Build for MacOS (AMD64 & ARM64)
+        run: |
+          git clone https://github.com/TeamFlos/phira-mp.git
+          cd phira-mp
           cross build --target x86_64-apple-darwin --release
           cross build --target aarch64-apple-darwin --release
-          
-          # Build for FreeBSD (AMD64 & ARM64)
+
+      - name: Archive MacOS build artifacts
+        run: |
+          mkdir -p bin
+          mv target/x86_64-apple-darwin/release/phira-mp-server bin/phira-mp-macos-x86_64
+          mv target/aarch64-apple-darwin/release/phira-mp-server bin/phira-mp-macos-arm64
+
+      - name: Upload MacOS build artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: phira-mp-macos-artifacts
+          path: bin/
+
+  # FreeBSD 构建（AMD64 & ARM64）
+  build_freebsd:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Install Rust and Cross
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+          source $HOME/.cargo/env
+          cargo install cross
+
+      - name: Build for FreeBSD (AMD64 & ARM64)
+        run: |
+          git clone https://github.com/TeamFlos/phira-mp.git
+          cd phira-mp
           cross build --target x86_64-unknown-freebsd --release
           cross build --target aarch64-unknown-freebsd --release
 
-      # 使用 Windows 构建 Windows 版本
-      - name: Build Windows using GitHub Windows Runner
-        runs-on: windows-latest
-        steps:
-          # 克隆仓库
-          - name: Checkout repository
-            uses: actions/checkout@v2
-
-          # 安装 Rust 和其他依赖
-          - name: Install Rust for Windows
-            run: |
-              curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-              source $HOME/.cargo/env
-              cargo install cross
-
-          # 在 Windows 上构建 Windows 版本
-          - name: Build for Windows (AMD64 & ARM64)
-            run: |
-              cd phira-mp
-              cargo build --target x86_64-pc-windows-msvc --release
-              cargo build --target aarch64-pc-windows-msvc --release
-
-      # 打包并重命名构建结果
-      - name: Package and Rename Builds
+      - name: Archive FreeBSD build artifacts
         run: |
-          mkdir -p release
-          
-          # Linux
-          mv target/x86_64-unknown-linux-gnu/release/phira-mp release/phira-mp-linux-x86_64
-          mv target/aarch64-unknown-linux-gnu/release/phira-mp release/phira-mp-linux-arm64
-          
-          # MacOS
-          mv target/x86_64-apple-darwin/release/phira-mp release/phira-mp-macos-x86_64
-          mv target/aarch64-apple-darwin/release/phira-mp release/phira-mp-macos-arm64
-          
-          # FreeBSD
-          mv target/x86_64-unknown-freebsd/release/phira-mp release/phira-mp-freebsd-x86_64
-          mv target/aarch64-unknown-freebsd/release/phira-mp release/phira-mp-freebsd-arm64
-          
-          # Windows
-          mv target/x86_64-pc-windows-msvc/release/phira-mp.exe release/phira-mp-windows-x86_64.exe
-          mv target/aarch64-pc-windows-msvc/release/phira-mp.exe release/phira-mp-windows-arm64.exe
+          mkdir -p bin
+          mv target/x86_64-unknown-freebsd/release/phira-mp-server bin/phira-mp-freebsd-x86_64
+          mv target/aarch64-unknown-freebsd/release/phira-mp-server bin/phira-mp-freebsd-arm64
 
-      # 发布 Release
-      - name: Create Release and Upload Assets
-        uses: softprops/action-gh-release@v1
+      - name: Upload FreeBSD build artifacts
+        uses: actions/upload-artifact@v3
         with:
-          tag_name: ${{ github.event.inputs.release_tag }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        
-        # 上传构建产物
-        continue-on-error: true
+          name: phira-mp-freebsd-artifacts
+          path: bin/
+
+  # Windows 构建（AMD64 & ARM64）
+  build_windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Install Rust and Cross for Windows
         run: |
-          # Upload Linux
-          gh release upload ${{ github.event.inputs.release_tag }} release/phira-mp-linux-x86_64
-          gh release upload ${{ github.event.inputs.release_tag }} release/phira-mp-linux-arm64
-          
-          # Upload MacOS
-          gh release upload ${{ github.event.inputs.release_tag }} release/phira-mp-macos-x86_64
-          gh release upload ${{ github.event.inputs.release_tag }} release/phira-mp-macos-arm64
-          
-          # Upload FreeBSD
-          gh release upload ${{ github.event.inputs.release_tag }} release/phira-mp-freebsd-x86_64
-          gh release upload ${{ github.event.inputs.release_tag }} release/phira-mp-freebsd-arm64
-          
-          # Upload Windows
-          gh release upload ${{ github.event.inputs.release_tag }} release/phira-mp-windows-x86_64.exe
-          gh release upload ${{ github.event.inputs.release_tag }} release/phira-mp-windows-arm64.exe
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+          source $HOME/.cargo/env
+          cargo install cross
+
+      - name: Build for Windows (AMD64 & ARM64)
+        run: |
+          cd phira-mp
+          cargo build --target x86_64-pc-windows-msvc --release
+          cargo build --target aarch64-pc-windows-msvc --release
+
+      - name: Archive Windows build artifacts
+        run: |
+          mkdir -p bin
+          mv target/x86_64-pc-windows-msvc/release/phira-mp-server.exe bin/phira-mp-windows-x86_64.exe
+          mv target/aarch64-pc-windows-msvc/release/phira-mp-server.exe bin/phira-mp-windows-arm64.exe
+
+      - name: Upload Windows build artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: phira-mp-windows-artifacts
+          path: bin/
+
+  # 发布任务
+  Publish:
+    permissions: write-all
+    if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.version }}
+    needs: [build_linux, build_macos, build_freebsd, build_windows]
+    runs-on: ubuntu-latest
+
+    steps:
+      # 下载构建产物
+      - name: Download Linux build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: phira-mp-linux-artifacts
+          path: bin/
+
+      - name: Download MacOS build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: phira-mp-macos-artifacts
+          path: bin/
+
+      - name: Download FreeBSD build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: phira-mp-freebsd-artifacts
+          path: bin/
+
+      - name: Download Windows build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: phira-mp-windows-artifacts
+          path: bin/
+
+      # 创建 GitHub Release 并上传构建产物
+      - name: Upload Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.version }}
+          files: bin/*
+          prerelease: false
