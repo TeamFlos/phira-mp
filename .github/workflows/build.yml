@@ -48,26 +48,43 @@ jobs:
             cargo build --release -p phira-mp-server
           fi
 
-      - name: Upload build artifacts
+      - name: Prepare build output
         run: |
+          # Ensure the output directory exists
           mkdir -p build_output/${{ matrix.platform }}
+
+          # For FreeBSD
           if [[ "${{ matrix.platform }}" == "freebsd/amd64" ]]; then
-            mkdir build_output/${{ matrix.platform }}
-            mv target/x86_64-unknown-freebsd/release/phira-mp-server build_output/${{ matrix.platform }}/phira-mp-server-freebsd-amd64
+            if [[ -f target/x86_64-unknown-freebsd/release/phira-mp-server ]]; then
+              mv target/x86_64-unknown-freebsd/release/phira-mp-server build_output/${{ matrix.platform }}/phira-mp-server-freebsd-amd64
+            else
+              echo "FreeBSD build artifact not found"
+            fi
+          # For Windows
           elif [[ "${{ matrix.platform }}" == "windows/amd64" || "${{ matrix.platform }}" == "windows/arm64" ]]; then
-            mkdir build_output/${{ matrix.platform }}
-            mv target/release/phira-mp-server.exe build_output/${{ matrix.platform }}/phira-mp-server-windows-${{ matrix.platform }}.exe
+            if [[ -f target/release/phira-mp-server.exe ]]; then
+              mv target/release/phira-mp-server.exe build_output/${{ matrix.platform }}/phira-mp-server-windows-${{ matrix.platform }}.exe
+            else
+              echo "Windows build artifact not found"
+            fi
+          # For Linux and macOS
           else
-            mkdir build_output/${{ matrix.platform }}
-            mv target/release/phira-mp-server build_output/${{ matrix.platform }}/phira-mp-server-${{ matrix.platform }}
+            if [[ -f target/release/phira-mp-server ]]; then
+              mv target/release/phira-mp-server build_output/${{ matrix.platform }}/phira-mp-server-${{ matrix.platform }}
+            else
+              echo "Linux/Mac build artifact not found"
+            fi
           fi
 
-          # Upload all artifacts for later use in release job
+      - name: Upload build artifacts
+        run: |
+          # Create a tarball of the build_output directory
           echo "Uploading artifacts"
           tar -czf build_output.tar.gz build_output/
-          upload-artifact:
-            name: build-artifacts
-            path: build_output.tar.gz
+        uses: actions/upload-artifact@v3
+        with:
+          name: build-artifacts
+          path: build_output.tar.gz
 
   release:
     needs: build
