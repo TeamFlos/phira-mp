@@ -59,9 +59,11 @@ jobs:
             cp target/release/phira-mp-server build_output/${{ matrix.platform }}/
           fi
 
-      - name: List build_output directory (debug step)
-        run: |
-          ls -R build_output/
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ matrix.platform }}
+          path: build_output/${{ matrix.platform }}
 
   release:
     runs-on: ubuntu-latest
@@ -70,6 +72,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
+      - name: Download build artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: windows/amd64  # This downloads the windows/amd64 artifact
+          
       - name: Set up GitHub release
         id: create_release
         uses: softprops/action-gh-release@v1
@@ -79,15 +86,52 @@ jobs:
           body: |
             Release of version ${{ github.event.inputs.release_tag }}
 
-      - name: Upload build artifacts to release
+      - name: Rename and upload build artifacts to release
+        run: |
+          # For Windows/AMD64
+          if [[ -f "build_output/windows/amd64/phira-mp-server" ]]; then
+            mv build_output/windows/amd64/phira-mp-server build_output/windows/amd64/phira-mp-server-windows-amd64
+          fi
+          
+          # For Windows/ARM64
+          if [[ -f "build_output/windows/arm64/phira-mp-server" ]]; then
+            mv build_output/windows/arm64/phira-mp-server build_output/windows/arm64/phira-mp-server-windows-arm64
+          fi
+          
+          # For Linux/AMD64
+          if [[ -f "build_output/linux/amd64/phira-mp-server" ]]; then
+            mv build_output/linux/amd64/phira-mp-server build_output/linux/amd64/phira-mp-server-linux-amd64
+          fi
+          
+          # For Linux/ARM64
+          if [[ -f "build_output/linux/arm64/phira-mp-server" ]]; then
+            mv build_output/linux/arm64/phira-mp-server build_output/linux/arm64/phira-mp-server-linux-arm64
+          fi
+          
+          # For macOS/AMD64
+          if [[ -f "build_output/macos/amd64/phira-mp-server" ]]; then
+            mv build_output/macos/amd64/phira-mp-server build_output/macos/amd64/phira-mp-server-macos-amd64
+          fi
+          
+          # For macOS/ARM64
+          if [[ -f "build_output/macos/arm64/phira-mp-server" ]]; then
+            mv build_output/macos/arm64/phira-mp-server build_output/macos/arm64/phira-mp-server-macos-arm64
+          fi
+          
+          # For FreeBSD/AMD64
+          if [[ -f "build_output/freebsd/amd64/phira-mp-server" ]]; then
+            mv build_output/freebsd/amd64/phira-mp-server build_output/freebsd/amd64/phira-mp-server-freebsd-amd64
+          fi
+
+      - name: Upload renamed build artifacts to release
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ github.event.inputs.release_tag }}  # 确保传递 tag_name
           files: |
-            build_output/windows/amd64/phira-mp-server
-            build_output/windows/arm64/phira-mp-server
-            build_output/linux/amd64/phira-mp-server
-            build_output/linux/arm64/phira-mp-server
-            build_output/macos/amd64/phira-mp-server
-            build_output/macos/arm64/phira-mp-server
-            build_output/freebsd/amd64/phira-mp-server
+            build_output/windows/amd64/phira-mp-server-windows-amd64
+            build_output/windows/arm64/phira-mp-server-windows-arm64
+            build_output/linux/amd64/phira-mp-server-linux-amd64
+            build_output/linux/arm64/phira-mp-server-linux-arm64
+            build_output/macos/amd64/phira-mp-server-macos-amd64
+            build_output/macos/arm64/phira-mp-server-macos-arm64
+            build_output/freebsd/amd64/phira-mp-server-freebsd-amd64
