@@ -1,130 +1,69 @@
-name: Build and Release
+name: Rust Build and Release
 
 on:
   workflow_dispatch:
     inputs:
-      release_tag:
-        description: 'Release Tag'
-        required: true
+      tag:
+        description: 'Tag for the release'
+        required: false
         default: 'v1.0.0'
 
 jobs:
-  build-linux:
+  build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
+      - name: Checkout Repository
         uses: actions/checkout@v2
 
-      - name: Clone phira-mp repository
+      - name: Install Dependencies
         run: |
-          git clone https://github.com/TeamFlos/phira-mp.git
-          cd phira-mp
-          cargo update
+          sudo apt update
+          sudo apt install -y pkg-config libssl-dev
 
       - name: Set up Rust
-        uses: actions-rs/toolchain@v1
+        uses: actions/setup-rust@v1
         with:
-          toolchain: stable
-          override: true
-          override-file: phira-mp/Cargo.toml
+          rust-version: stable
 
-      - name: Install cross
+      - name: Install Cross for Cross-compilation
+        run: cargo install cross
+
+      - name: Build for Linux AMD64
+        run: cross build --target x86_64-unknown-linux-gnu --release
+
+      - name: Build for Windows AMD64
+        run: cross build --target x86_64-pc-windows-gnu --release
+
+      - name: Build for Linux ARM64
+        run: cross build --target aarch64-unknown-linux-gnu --release
+
+      - name: Build for Windows ARM64
+        run: cross build --target aarch64-pc-windows-gnu --release
+
+      - name: Build for FreeBSD AMD64
+        run: cross build --target x86_64-unknown-freebsd --release
+
+      - name: Rename Build Artifacts
         run: |
-          cargo install cross
+          mv target/x86_64-unknown-linux-gnu/release/phira-mp target/phira-mp-linux-x86_64
+          mv target/x86_64-pc-windows-gnu/release/phira-mp.exe target/phira-mp-win-x86_64.exe
+          mv target/aarch64-unknown-linux-gnu/release/phira-mp target/phira-mp-linux-arm64
+          mv target/aarch64-pc-windows-gnu/release/phira-mp.exe target/phira-mp-win-arm64.exe
+          mv target/x86_64-unknown-freebsd/release/phira-mp target/phira-mp-freebsd-x86_64
 
-      - name: Install aarch64-apple-darwin target
-        run: |
-          rustup target add aarch64-apple-darwin
-
-      - name: Build for Linux amd64
-        run: |
-          cd phira-mp
-          cargo build --release -p phira-mp-server
-
-  build-others:
-    runs-on: ubuntu-latest
-    needs: build-linux
-    strategy:
-      matrix:
-        target:
-          - "x86_64-unknown-freebsd"     # FreeBSD amd64
-          - "aarch64-apple-darwin"       # Darwin arm64
-          - "i686-unknown-linux-gnu"     # Linux 386
-          - "armv5te-unknown-linux-gnueabi"  # Linux armv5
-          - "armv6-unknown-linux-gnueabi"    # Linux armv6
-          - "armv7-unknown-linux-gnueabihf"  # Linux armv7
-          - "aarch64-unknown-linux-gnu"       # Linux arm64
-          - "riscv64gc-unknown-linux-gnu"      # RISC-V
-          - "mips-unknown-linux-gnu"           # MIPS
-          - "mipsel-unknown-linux-gnu"         # MIPSel
-          - "mips64-unknown-linux-gnu"         # MIPS64
-          - "mips64el-unknown-linux-gnu"       # MIPS64el
-          - "loongarch64-unknown-linux-gnu"    # LoongArch
-          - "s390x-unknown-linux-gnu"          # S390X
-          - "aarch64-unknown-freebsd"          # FreeBSD arm64
-          - "aarch64-linux-android"             # Android arm64
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v2
-
-      - name: Clone phira-mp repository
-        run: |
-          git clone https://github.com/TeamFlos/phira-mp.git
-          cd phira-mp
-          cargo update
-
-      - name: Set up Rust
-        uses: actions-rs/toolchain@v1
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
         with:
-          toolchain: stable
-          override: true
-          override-file: phira-mp/Cargo.toml
-
-      - name: Install cross
-        run: |
-          cargo install cross
-
-      - name: Build for ${{ matrix.target }}
-        run: |
-          if [[ "${{ matrix.target }}" == "x86_64-unknown-freebsd" || "${{ matrix.target }}" == "aarch64-unknown-freebsd" ]]; then
-            echo "Building for FreeBSD using cross on Ubuntu amd64..."
-            cd phira-mp
-            cross build --release --target "${{ matrix.target }}" -p phira-mp-server
-          else
-            echo "Building for ${{ matrix.target }} using GitHub default runner..."
-            # For non-FreeBSD platforms, use GitHub's default image (no cross-compilation needed)
-            cargo build --release --target "${{ matrix.target }}" -p phira-mp-server
-
-  create-release:
-    runs-on: ubuntu-latest
-    needs: build-others
-    steps:
-      - name: Create Release
-        id: create_release
-        uses: actions/create-release@v1
-        with:
-          tag_name: ${{ github.event.inputs.release_tag }}
-          release_name: Release ${{ github.event.inputs.release_tag }}
-          draft: false
-          prerelease: false
+          tag_name: ${{ github.event.inputs.tag }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  upload-artifacts:
-    runs-on: ubuntu-latest
-    needs: create-release
-    steps:
-      - name: Upload artifacts
-        run: |
-          cd phira-mp
-          for target in "${{ matrix.target }}"; do
-            asset_name="phira-mp-server-${target//-/_}"
-            asset_path="target/${target}/release/phira-mp-server"
-            if [ -f "$asset_path" ]; then
-              echo "Uploading $asset_name"
-              curl -X POST -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-                -H "Content-Type: application/octet-stream" \
-                --data-binary @"$asset_path" \
-                "https://uploads.github.com/repos/${{ github.repository }}/releases/${{ steps.create_release.outputs.id }}/assets?name=$asset_name"
-            fi
-          done
+      - name: Upload Release Assets
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            target/phira-mp-linux-x86_64
+            target/phira-mp-win-x86_64.exe
+            target/phira-mp-linux-arm64
+            target/phira-mp-win-arm64.exe
+            target/phira-mp-freebsd-x86_64
