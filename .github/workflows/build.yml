@@ -52,11 +52,11 @@ jobs:
         run: |
           mkdir -p build_output/${{ matrix.platform }}
           if [[ "${{ matrix.platform }}" == "freebsd/amd64" ]]; then
-            # For FreeBSD, copy the artifact from the cross target directory
-            cp target/x86_64-unknown-freebsd/release/phira-mp-server build_output/${{ matrix.platform }}/
+            # For FreeBSD, copy the artifact from the cross target directory and rename it
+            cp target/x86_64-unknown-freebsd/release/phira-mp-server build_output/${{ matrix.platform }}/phira-mp-freebsd-amd64
           else
-            # For other platforms, copy from the default release directory
-            cp target/release/phira-mp-server build_output/${{ matrix.platform }}/
+            # For other platforms, copy from the default release directory and rename it
+            cp target/release/phira-mp-server build_output/${{ matrix.platform }}/phira-mp-${{ matrix.platform }}.exe
           fi
 
   release:
