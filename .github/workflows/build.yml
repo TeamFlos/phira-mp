@@ -32,8 +32,8 @@ jobs:
             
           - platform: linux-arm64
             os: ubuntu-latest
-            target: aarch64-unknown-linux-gnu
             artifact_name: phira-mp-server-linux-arm64
+            use_container: true
             
           - platform: freebsd-amd64
             os: ubuntu-latest
@@ -47,7 +47,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Setup Rust
+      # 常规构建步骤
+      - name: Setup Rust (non-ARM64)
+        if: ${{ !matrix.use_container }}
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
@@ -59,25 +61,43 @@ jobs:
           sudo apt-get install -y pkg-config libssl-dev
         shell: bash
         
-      - name: Install cross (for cross-compilation)
-        if: matrix.platform == 'freebsd-amd64' || matrix.platform == 'linux-arm64'
+      - name: Install cross (for FreeBSD)
+        if: matrix.platform == 'freebsd-amd64'
         run: |
           cargo install cross
         shell: bash
 
-      - name: Setup ARM64 tools (for Linux ARM64)
+      # ARM64 专用构建步骤
+      - name: Build for ARM64 Linux
         if: matrix.platform == 'linux-arm64'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
-          sudo apt-get install -y qemu-user qemu-user-static
-        shell: bash
+        uses: uraimo/run-on-arch-action@v2
+        id: arm64build
+        with:
+          arch: aarch64
+          distro: ubuntu22.04
+          githubToken: ${{ github.token }}
+          setup: |
+            mkdir -p "${PWD}/build_output"
+          dockerRunArgs: |
+            --volume "${PWD}:/workspace"
+          shell: /bin/bash
+          install: |
+            apt-get update -q -y
+            apt-get install -q -y curl build-essential pkg-config libssl-dev
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+          run: |
+            source "$HOME/.cargo/env"
+            cd /workspace
+            cargo build --release -p phira-mp-server
+            cp target/release/phira-mp-server build_output/phira-mp-server-linux-arm64
 
-      - name: Build project
+      # 非 ARM64 的构建步骤
+      - name: Build project (non-ARM64)
+        if: ${{ !matrix.use_container }}
         shell: bash
         run: |
-          if [[ "${{ matrix.platform }}" == "freebsd-amd64" || "${{ matrix.platform }}" == "linux-arm64" ]]; then
-            # Use cross for FreeBSD and Linux ARM64
+          if [[ "${{ matrix.platform }}" == "freebsd-amd64" ]]; then
+            # Use cross for FreeBSD
             cross build --release -p phira-mp-server --target ${{ matrix.target }}
           elif [[ "${{ matrix.platform }}" == "macos-arm64" ]]; then
             # For MacOS ARM64, use cargo with target
@@ -87,21 +107,19 @@ jobs:
             cargo build --release -p phira-mp-server
           fi
 
-      - name: Prepare artifact
+      # 非 ARM64 的产物准备
+      - name: Prepare artifact (non-ARM64)
+        if: ${{ !matrix.use_container }}
         shell: bash
         run: |
           mkdir -p build_output
-          if [[ "${{ matrix.platform }}" == "freebsd-amd64" || "${{ matrix.platform }}" == "linux-arm64" ]]; then
-            # For cross-compiled targets
+          if [[ "${{ matrix.platform }}" == "freebsd-amd64" ]]; then
             cp "target/${{ matrix.target }}/release/phira-mp-server" "build_output/${{ matrix.artifact_name }}"
           elif [[ "${{ matrix.platform }}" == "macos-arm64" ]]; then
-            # For MacOS ARM64
             cp "target/${{ matrix.target }}/release/phira-mp-server" "build_output/${{ matrix.artifact_name }}"
           elif [[ "${{ matrix.platform }}" == "windows-amd64" ]]; then
-            # For Windows
             cp "target/release/phira-mp-server.exe" "build_output/${{ matrix.artifact_name }}"
           else
-            # For native builds
             cp "target/release/phira-mp-server" "build_output/${{ matrix.artifact_name }}"
           fi
 
