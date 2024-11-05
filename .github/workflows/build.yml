@@ -57,7 +57,6 @@ jobs:
           else
             # For other platforms, copy from the default release directory
             cp target/release/phira-mp-server build_output/${{ matrix.platform }}/
-          fi
 
   release:
     runs-on: ubuntu-latest
@@ -88,6 +87,7 @@ jobs:
       - name: Upload build artifacts to release
         uses: softprops/action-gh-release@v1
         with:
+          tag_name: ${{ github.event.inputs.release_tag }}  # 确保传递 tag_name
           files: |
             build_output/windows/amd64/phira-mp-server-windows-amd64.tar.gz
             build_output/windows/arm64/phira-mp-server-windows-arm64.tar.gz
