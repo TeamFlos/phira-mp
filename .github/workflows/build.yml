@@ -20,7 +20,7 @@ jobs:
           - linux-arm64
           - macos-amd64
           - macos-arm64
-          - freebsd-amd64  # Only build FreeBSD AMD64 version
+          - freebsd-amd64  # 只构建FreeBSD的AMD64版本
     name: Build for ${{ matrix.platform }}
     
     steps:
@@ -59,15 +59,15 @@ jobs:
             cp target/release/phira-mp-server build_output/${{ matrix.platform }}/
           fi
 
-      - name: Set Artifact Name
-        id: set_artifact_name
-        run: echo "artifact_name=${{ matrix.platform }}-artifact" >> $GITHUB_ENV
+      - name: Rename Artifact
+        run: |
+          mv build_output/${{ matrix.platform }}/phira-mp-server build_output/${{ matrix.platform }}/phira-mp-server-${{ matrix.platform }}.exe
 
       - name: Upload Build Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.artifact_name }}
-          path: build_output/${{ matrix.platform }}/phira-mp-server
+          name: ${{ matrix.platform }}-artifact
+          path: build_output/${{ matrix.platform }}/phira-mp-server-${{ matrix.platform }}.exe
 
   publish:
     permissions: write-all
