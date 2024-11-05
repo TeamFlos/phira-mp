@@ -38,6 +38,8 @@ jobs:
         if: matrix.platform == 'freebsd/amd64' || matrix.platform == 'freebsd/arm64'
         run: |
           cargo install cross
+          rustup target add x86_64-unknown-freebsd
+          rustup target add aarch64-unknown-freebsd
 
       - name: Build project for ${{ matrix.platform }}
         run: |
