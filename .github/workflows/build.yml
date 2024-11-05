@@ -93,13 +93,16 @@ jobs:
           mkdir -p build_output
           if [[ "${{ matrix.platform }}" == "freebsd-amd64" || "${{ matrix.platform }}" == "linux-arm64" ]]; then
             # For cross-compiled targets
-            cp target/${{ matrix.target }}/release/phira-mp-server* "build_output/${{ matrix.artifact_name }}"
+            cp "target/${{ matrix.target }}/release/phira-mp-server" "build_output/${{ matrix.artifact_name }}"
           elif [[ "${{ matrix.platform }}" == "macos-arm64" ]]; then
             # For MacOS ARM64
-            cp target/${{ matrix.target }}/release/phira-mp-server* "build_output/${{ matrix.artifact_name }}"
+            cp "target/${{ matrix.target }}/release/phira-mp-server" "build_output/${{ matrix.artifact_name }}"
+          elif [[ "${{ matrix.platform }}" == "windows-amd64" ]]; then
+            # For Windows
+            cp "target/release/phira-mp-server.exe" "build_output/${{ matrix.artifact_name }}"
           else
             # For native builds
-            cp target/release/phira-mp-server* "build_output/${{ matrix.artifact_name }}"
+            cp "target/release/phira-mp-server" "build_output/${{ matrix.artifact_name }}"
           fi
 
       - name: Upload Build Artifact
