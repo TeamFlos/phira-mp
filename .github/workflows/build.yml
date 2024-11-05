@@ -28,9 +28,22 @@ jobs:
           cargo install cross
 
       - name: Build for Windows AMD64
-        run: |
-          rustup target add x86_64-pc-windows-msvc
-          cargo build --release -p phira-mp-server --target x86_64-pc-windows-msvc
+        runs-on: windows-latest
+        steps:
+          - name: Checkout repository
+            uses: actions/checkout@v2
+
+          - name: Set up Rust
+            uses: actions-rs/toolchain@v1
+            with:
+              toolchain: nightly
+              override: true
+              components: rustfmt
+
+          - name: Build for Windows AMD64
+            run: |
+              rustup target add x86_64-pc-windows-msvc
+              cargo build --release -p phira-mp-server --target x86_64-pc-windows-msvc
 
       - name: Build for Linux AMD64
         run: cross build --release -p phira-mp-server --target x86_64-unknown-linux-gnu
