@@ -10,7 +10,6 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
     strategy:
       matrix:
         platform:
@@ -18,6 +17,8 @@ jobs:
           - linux-amd64
           - freebsd-amd64  # 只构建 FreeBSD 的 AMD64 版本
     name: Build for ${{ matrix.platform }}
+    
+    runs-on: ${{ matrix.platform == 'windows-amd64' && 'windows-latest' || 'ubuntu-latest' }}  # Windows 使用 windows-latest，其他使用 ubuntu-latest
     
     steps:
       - name: Checkout repository
@@ -33,14 +34,17 @@ jobs:
         if: matrix.platform == 'freebsd-amd64'
         run: |
           cargo install cross
-          
+
       - name: Build project for ${{ matrix.platform }}
         run: |
           if [[ "${{ matrix.platform }}" == "freebsd-amd64" ]]; then
             # For FreeBSD, use cross for building (only AMD64)
             cross build --release -p phira-mp-server --target x86_64-unknown-freebsd
+          elif [[ "${{ matrix.platform }}" == "windows-amd64" ]]; then
+            # For Windows, use native build with Windows target
+            cargo build --release -p phira-mp-server --target x86_64-pc-windows-msvc
           else
-            # For other platforms (Windows, Linux), use native cargo build
+            # For Linux, use native build
             cargo build --release -p phira-mp-server
           fi
 
@@ -48,17 +52,17 @@ jobs:
         run: |
           mkdir -p build_output/${{ matrix.platform }}
           if [[ "${{ matrix.platform }}" == "freebsd-amd64" ]]; then
-            # For FreeBSD, copy the artifact from the cross target directory
             cp target/x86_64-unknown-freebsd/release/phira-mp-server build_output/${{ matrix.platform }}/
+          elif [[ "${{ matrix.platform }}" == "windows-amd64" ]]; then
+            cp target/x86_64-pc-windows-msvc/release/phira-mp-server.exe build_output/${{ matrix.platform }}/
           else
-            # For other platforms, copy from the default release directory
             cp target/release/phira-mp-server build_output/${{ matrix.platform }}/
           fi
 
       - name: Rename Artifact
         run: |
           if [[ "${{ matrix.platform }}" == "windows-amd64" ]]; then
-            mv build_output/${{ matrix.platform }}/phira-mp-server build_output/${{ matrix.platform }}/phira-mp-server-${{ matrix.platform }}.exe
+            mv build_output/${{ matrix.platform }}/phira-mp-server.exe build_output/${{ matrix.platform }}/phira-mp-server-${{ matrix.platform }}.exe
           else
             mv build_output/${{ matrix.platform }}/phira-mp-server build_output/${{ matrix.platform }}/phira-mp-server-${{ matrix.platform }}
           fi
