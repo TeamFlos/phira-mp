@@ -32,7 +32,8 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y pkg-config libssl-dev
           
-      - name: Install cross
+      - name: Install cross (for FreeBSD only)
+        if: matrix.platform == 'freebsd-amd64'
         run: |
           cargo install cross
           
@@ -41,9 +42,12 @@ jobs:
           if [[ "${{ matrix.platform }}" == "freebsd-amd64" ]]; then
             # For FreeBSD, use cross for building (only AMD64)
             cross build --release -p phira-mp-server --target x86_64-unknown-freebsd
-          else
-            # For other platforms (Linux, macOS), use cross for building
-            cross build --release -p phira-mp-server --target ${{ matrix.platform }}
+          elif [[ "${{ matrix.platform }}" == "linux-amd64" || "${{ matrix.platform }}" == "linux-arm64" ]]; then
+            # For Linux, build natively
+            cargo build --release -p phira-mp-server --target ${{ matrix.platform }}
+          elif [[ "${{ matrix.platform }}" == "macos-amd64" || "${{ matrix.platform }}" == "macos-arm64" ]]; then
+            # For macOS, build natively
+            cargo build --release -p phira-mp-server --target ${{ matrix.platform }}
           fi
 
       - name: Archive build artifact
@@ -83,16 +87,16 @@ jobs:
 
       - name: Build project for ${{ matrix.platform }}
         run: |
-          cargo build --release -p phira-mp-server
+          cargo build --release -p phira-mp-server --target ${{ matrix.platform }}
 
       - name: Archive build artifact
         run: |
           mkdir -p build_output/${{ matrix.platform }}
-          cp target/release/phira-mp-server build_output/${{ matrix.platform }}/
+          cp target/${{ matrix.platform }}/release/phira-mp-server.exe build_output/${{ matrix.platform }}/
 
       - name: Rename Artifact
         run: |
-          mv build_output/${{ matrix.platform }}/phira-mp-server build_output/${{ matrix.platform }}/phira-mp-server-${{ matrix.platform }}.exe
+          mv build_output/${{ matrix.platform }}/phira-mp-server.exe build_output/${{ matrix.platform }}/phira-mp-server-${{ matrix.platform }}.exe
 
       - name: Upload Build Artifact
         uses: actions/upload-artifact@v4
