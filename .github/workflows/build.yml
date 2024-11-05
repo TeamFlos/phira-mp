@@ -9,106 +9,107 @@ on:
         default: 'v1.0.0'
 
 jobs:
-  build-linux-macos-freebsd:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        platform:
-          - linux-amd64
-          - linux-arm64
-          - macos-amd64
-          - macos-arm64
-          - freebsd-amd64  # Only build FreeBSD AMD64 version
-    
-    name: Build for ${{ matrix.platform }}
-    
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-
-      - name: Install dependencies
-        run: |
-          if [[ "${{ matrix.platform }}" == "freebsd-amd64" ]]; then
-            sudo apt-get update
-            sudo apt-get install -y pkg-config libssl-dev
-          fi
-
-      - name: Install cross
-        run: |
-          cargo install cross
-          
-      - name: Build project for ${{ matrix.platform }}
-        run: |
-          if [[ "${{ matrix.platform }}" == "freebsd-amd64" ]]; then
-            # For FreeBSD, use cross for building (only AMD64)
-            cross build --release -p phira-mp-server --target x86_64-unknown-freebsd
-          else
-            # For other platforms (Linux, macOS), use cross for building
-            cross build --release -p phira-mp-server --target ${{ matrix.platform }}
-          fi
-
-      - name: Archive build artifact
-        run: |
-          mkdir -p build_output/${{ matrix.platform }}
-          if [[ "${{ matrix.platform }}" == "freebsd-amd64" ]]; then
-            # For FreeBSD, copy the artifact from the cross target directory
-            cp target/x86_64-unknown-freebsd/release/phira-mp-server build_output/${{ matrix.platform }}/
-          else
-            # For other platforms, copy from the default release directory
-            cp target/${{ matrix.platform }}/release/phira-mp-server build_output/${{ matrix.platform }}/
-          fi
-
-      - name: Rename Artifact
-        run: |
-          mv build_output/${{ matrix.platform }}/phira-mp-server build_output/${{ matrix.platform }}/phira-mp-server-${{ matrix.platform }}
-
-      - name: Upload Build Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.platform }}-artifact
-          path: build_output/${{ matrix.platform }}/phira-mp-server-${{ matrix.platform }}
-
-  build-windows:
+  # Build for Windows (amd64 & arm64)
+  build_windows:
     runs-on: windows-latest
     strategy:
       matrix:
-        platform:
-          - windows-amd64
-          - windows-arm64
-    
-    name: Build for ${{ matrix.platform }}
-    
+        architecture: [x86_64, aarch64]  # x86_64 和 aarch64 架构
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Install dependencies
+      - name: Install Rust and cross for Windows
         run: |
-          choco install pkg-config
-          
-      - name: Build project for ${{ matrix.platform }}
+          cargo install cross
+
+      - name: Build project for Windows (${{ matrix.architecture }})
         run: |
-          cargo build --release -p phira-mp-server --target ${{ matrix.platform }}
+          cross build --release -p phira-mp-server --target x86_64-pc-windows-msvc  # amd64 架构
+          if [ "${{ matrix.architecture }}" == "aarch64" ]; then
+            cross build --release -p phira-mp-server --target aarch64-pc-windows-msvc  # arm64 架构
+          fi
 
       - name: Archive build artifact
         run: |
-          mkdir -p build_output/${{ matrix.platform }}
-          cp target/${{ matrix.platform }}/release/phira-mp-server.exe build_output/${{ matrix.platform }}/
+          mkdir -p build_output/windows-${{ matrix.architecture }}
+          cp target/${{ matrix.architecture }}-pc-windows-msvc/release/phira-mp-server.exe build_output/windows-${{ matrix.architecture }}/
 
-      - name: Rename Artifact
+  # Build for macOS (amd64 & arm64)
+  build_macos:
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        architecture: [x86_64, aarch64]  # x86_64 和 arm64 架构
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Install Rust and cross for macOS
         run: |
-          mv build_output/${{ matrix.platform }}/phira-mp-server.exe build_output/${{ matrix.platform }}/phira-mp-server-${{ matrix.platform }}.exe
+          cargo install cross
 
-      - name: Upload Build Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.platform }}-artifact
-          path: build_output/${{ matrix.platform }}/phira-mp-server-${{ matrix.platform }}.exe
+      - name: Build project for macOS (${{ matrix.architecture }})
+        run: |
+          cross build --release -p phira-mp-server --target x86_64-apple-darwin  # amd64 架构
+          if [ "${{ matrix.architecture }}" == "aarch64" ]; then
+            cross build --release -p phira-mp-server --target aarch64-apple-darwin  # arm64 架构
+          fi
 
+      - name: Archive build artifact
+        run: |
+          mkdir -p build_output/macos-${{ matrix.architecture }}
+          cp target/${{ matrix.architecture }}-apple-darwin/release/phira-mp-server build_output/macos-${{ matrix.architecture }}/
+
+  # Build for Linux (amd64 & arm64)
+  build_linux:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        architecture: [x86_64, aarch64]  # x86_64 和 arm64 架构
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Install Rust and cross for Linux
+        run: |
+          cargo install cross
+
+      - name: Build project for Linux (${{ matrix.architecture }})
+        run: |
+          cross build --release -p phira-mp-server --target x86_64-unknown-linux-gnu  # amd64 架构
+          if [ "${{ matrix.architecture }}" == "aarch64" ]; then
+            cross build --release -p phira-mp-server --target aarch64-unknown-linux-gnu  # arm64 架构
+          fi
+
+      - name: Archive build artifact
+        run: |
+          mkdir -p build_output/linux-${{ matrix.architecture }}
+          cp target/${{ matrix.architecture }}-unknown-linux-gnu/release/phira-mp-server build_output/linux-${{ matrix.architecture }}/
+
+  # Build for FreeBSD (amd64)
+  build_freebsd:
+    runs-on: ubuntu-latest  # 这里可以使用 Ubuntu 来进行交叉编译
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Install Rust and cross for FreeBSD
+        run: |
+          cargo install cross
+
+      - name: Build project for FreeBSD (amd64)
+        run: |
+          cross build --release -p phira-mp-server --target x86_64-unknown-freebsd  # amd64 架构
+
+      - name: Archive build artifact
+        run: |
+          mkdir -p build_output/freebsd-amd64
+          cp target/x86_64-unknown-freebsd/release/phira-mp-server build_output/freebsd-amd64/
+
+  # Upload build artifacts
   publish:
-    permissions: write-all
-    if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.release_tag }}
-    needs: [build-linux-macos-freebsd, build-windows]
+    needs: [build_windows, build_macos, build_linux, build_freebsd]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -117,13 +118,11 @@ jobs:
       - name: Download build artifacts
         uses: actions/download-artifact@v4
         with:
-          path: bin/
-          merge-multiple: true
+          path: build_output
 
       - name: Upload Release
         uses: softprops/action-gh-release@v2
-        if: ${{ success() }}
         with:
           tag_name: ${{ github.event.inputs.release_tag }}
-          files: bin/*
+          files: build_output/**/*
           prerelease: false
