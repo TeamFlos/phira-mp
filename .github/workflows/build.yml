@@ -4,8 +4,8 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: 'Release Tag (required)'
-        required: true  # 确保填写Tag
+        description: 'Release Tag'
+        required: true  # Make tag required during manual trigger
         default: 'v1.0.0'
 
 jobs:
@@ -20,9 +20,9 @@ jobs:
           - linux/arm64
           - macos/amd64
           - macos/arm64
-          - freebsd/amd64  # 只构建FreeBSD的AMD64版本
+          - freebsd/amd64
     name: Build for ${{ matrix.platform }}
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
@@ -37,7 +37,7 @@ jobs:
         if: matrix.platform == 'freebsd/amd64'
         run: |
           cargo install cross
-          
+
       - name: Build project for ${{ matrix.platform }}
         run: |
           if [[ "${{ matrix.platform }}" == "freebsd/amd64" ]]; then
@@ -48,37 +48,23 @@ jobs:
             cargo build --release -p phira-mp-server
           fi
 
-      - name: Check if build output exists
-        run: |
-          echo "Checking build output..."
-          ls target/release
-          ls target/x86_64-unknown-freebsd/release || true  # for FreeBSD
-
-      - name: Rename build artifact for ${{ matrix.platform }}
+      - name: Upload build artifacts
         run: |
           mkdir -p build_output/${{ matrix.platform }}
           if [[ "${{ matrix.platform }}" == "freebsd/amd64" ]]; then
-            # For FreeBSD, rename the artifact
-            if [[ -f target/x86_64-unknown-freebsd/release/phira-mp-server ]]; then
-              mv target/x86_64-unknown-freebsd/release/phira-mp-server build_output/${{ matrix.platform }}/phira-mp-server-freebsd-amd64
-            else
-              echo "FreeBSD build artifact not found"
-            fi
+            mv target/x86_64-unknown-freebsd/release/phira-mp-server build_output/${{ matrix.platform }}/phira-mp-server-freebsd-amd64
           elif [[ "${{ matrix.platform }}" == "windows/amd64" || "${{ matrix.platform }}" == "windows/arm64" ]]; then
-            # For Windows, rename with .exe extension
-            if [[ -f target/release/phira-mp-server.exe ]]; then
-              mv target/release/phira-mp-server.exe build_output/${{ matrix.platform }}/phira-mp-server-windows-${{ matrix.platform }}.exe
-            else
-              echo "Windows build artifact not found"
-            fi
+            mv target/release/phira-mp-server.exe build_output/${{ matrix.platform }}/phira-mp-server-windows-${{ matrix.platform }}.exe
           else
-            # For other platforms (Linux, macOS), rename without extension
-            if [[ -f target/release/phira-mp-server ]]; then
-              mv target/release/phira-mp-server build_output/${{ matrix.platform }}/phira-mp-server-${{ matrix.platform }}
-            else
-              echo "Build artifact not found for ${matrix.platform}"
-            fi
+            mv target/release/phira-mp-server build_output/${{ matrix.platform }}/phira-mp-server-${{ matrix.platform }}
           fi
+
+          # Upload all artifacts for later use in release job
+          echo "Uploading artifacts"
+          tar -czf build_output.tar.gz build_output/
+          upload-artifact:
+            name: build-artifacts
+            path: build_output.tar.gz
 
   release:
     needs: build
@@ -87,12 +73,22 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
+      - name: Download build artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: build-artifacts
+
+      - name: List downloaded files
+        run: |
+          tar -xzf build_output.tar.gz
+          ls -la build_output/
+
       - name: Create GitHub Release
         id: release
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            build_output/**/*
+            build_output/**/*  # Use the correct glob pattern to include all files
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
