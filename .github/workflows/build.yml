@@ -1,11 +1,11 @@
-name: Cross-Compile and Release
+name: 聚合构建
 
 on:
   workflow_dispatch:
     inputs:
       release_tag:
         description: 'Release Tag'
-        required: false
+        required: true
         default: 'v1.0.0'
 
 jobs:
@@ -41,34 +41,34 @@ jobs:
             artifact_name: phira-mp-server-freebsd-amd64
 
     runs-on: ${{ matrix.os }}
-    name: Build for ${{ matrix.platform }}
+    name: 构建 ${{ matrix.platform }}
     
     steps:
-      - name: Checkout repository
+      - name: 检查仓库
         uses: actions/checkout@v3
 
       # 常规构建步骤
-      - name: Setup Rust (non-ARM64)
+      - name: 设置Rust环境 (除 ARM 64 Linux)
         if: ${{ !matrix.use_container }}
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
           
-      - name: Install dependencies (for FreeBSD only)
+      - name: 安装依赖 (仅 FreeBSD)
         if: matrix.platform == 'freebsd-amd64'
         run: |
           sudo apt-get update
           sudo apt-get install -y pkg-config libssl-dev
         shell: bash
         
-      - name: Install cross (for FreeBSD)
+      - name: 安装 cross (对于 FreeBSD)
         if: matrix.platform == 'freebsd-amd64'
         run: |
           cargo install cross
         shell: bash
 
       # ARM64 专用构建步骤
-      - name: Build for ARM64 Linux
+      - name: 针对于 ARM64 Linux 的构建并且准备产物
         if: matrix.platform == 'linux-arm64'
         uses: uraimo/run-on-arch-action@v2
         id: arm64build
@@ -92,7 +92,7 @@ jobs:
             cp target/release/phira-mp-server build_output/phira-mp-server-linux-arm64
 
       # 非 ARM64 的构建步骤
-      - name: Build project (non-ARM64)
+      - name: 通用构建
         if: ${{ !matrix.use_container }}
         shell: bash
         run: |
@@ -108,7 +108,7 @@ jobs:
           fi
 
       # 非 ARM64 的产物准备
-      - name: Prepare artifact (non-ARM64)
+      - name: 准备构建产物 （除 ARM 64 Linux）
         if: ${{ !matrix.use_container }}
         shell: bash
         run: |
@@ -123,7 +123,7 @@ jobs:
             cp "target/release/phira-mp-server" "build_output/${{ matrix.artifact_name }}"
           fi
 
-      - name: Upload Build Artifact
+      - name: 上传构建产物
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.platform }}-artifact
@@ -137,13 +137,13 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-      - name: Download build artifacts
+      - name: 下载各Job的构建产物
         uses: actions/download-artifact@v4
         with:
           path: bin/
           merge-multiple: true
 
-      - name: Upload Release
+      - name: 将构建产物上传到Release
         uses: softprops/action-gh-release@v2
         if: ${{ success() }}
         with:
