@@ -62,7 +62,7 @@ jobs:
       - name: Upload build artifacts
         uses: actions/upload-artifact@v3
         with:
-          name: ${{ matrix.platform }}
+          name: ${{ matrix.platform //\//- }}  # 将 '/' 替换为 '-'
           path: build_output/${{ matrix.platform }}
 
   release:
@@ -75,8 +75,8 @@ jobs:
       - name: Download build artifacts
         uses: actions/download-artifact@v3
         with:
-          name: windows/amd64  # This downloads the windows/amd64 artifact
-          
+          name: linux-amd64  # 这里应该是合法的 artifact 名称
+
       - name: Set up GitHub release
         id: create_release
         uses: softprops/action-gh-release@v1
