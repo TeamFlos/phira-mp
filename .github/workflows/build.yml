@@ -26,14 +26,14 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Install dependencies (for FreeBSD only)
-        if: matrix.platform == 'freebsd-amd64'
+      - name: Install dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y pkg-config libssl-dev
-          
-      - name: Install cross (for FreeBSD only)
-        if: matrix.platform == 'freebsd-amd64'
+          if [[ "${{ matrix.platform }}" == "freebsd-amd64" ]]; then
+            sudo apt-get update
+            sudo apt-get install -y pkg-config libssl-dev
+          fi
+
+      - name: Install cross
         run: |
           cargo install cross
           
@@ -42,12 +42,9 @@ jobs:
           if [[ "${{ matrix.platform }}" == "freebsd-amd64" ]]; then
             # For FreeBSD, use cross for building (only AMD64)
             cross build --release -p phira-mp-server --target x86_64-unknown-freebsd
-          elif [[ "${{ matrix.platform }}" == "linux-amd64" || "${{ matrix.platform }}" == "linux-arm64" ]]; then
-            # For Linux, build natively
-            cargo build --release -p phira-mp-server --target ${{ matrix.platform }}
-          elif [[ "${{ matrix.platform }}" == "macos-amd64" || "${{ matrix.platform }}" == "macos-arm64" ]]; then
-            # For macOS, build natively
-            cargo build --release -p phira-mp-server --target ${{ matrix.platform }}
+          else
+            # For other platforms (Linux, macOS), use cross for building
+            cross build --release -p phira-mp-server --target ${{ matrix.platform }}
           fi
 
       - name: Archive build artifact
@@ -85,6 +82,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
+      - name: Install dependencies
+        run: |
+          choco install pkg-config
+          
       - name: Build project for ${{ matrix.platform }}
         run: |
           cargo build --release -p phira-mp-server --target ${{ matrix.platform }}
