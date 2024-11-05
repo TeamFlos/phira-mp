@@ -9,13 +9,11 @@ on:
         default: 'v1.0.0'
 
 jobs:
-  build:
-    runs-on: ${{ matrix.platform == 'windows-amd64' || matrix.platform == 'windows-arm64' ? 'windows-latest' : 'ubuntu-latest' }}
+  build-linux-macos-freebsd:
+    runs-on: ubuntu-latest
     strategy:
       matrix:
         platform:
-          - windows-amd64
-          - windows-arm64
           - linux-amd64
           - linux-arm64
           - macos-amd64
@@ -45,7 +43,7 @@ jobs:
             # For FreeBSD, use cross for building (only AMD64)
             cross build --release -p phira-mp-server --target x86_64-unknown-freebsd
           else
-            # For other platforms (Windows, Linux, macOS), use native cargo build
+            # For other platforms (Linux, macOS), use native cargo build
             cargo build --release -p phira-mp-server
           fi
 
@@ -62,22 +60,51 @@ jobs:
 
       - name: Rename Artifact
         run: |
-          if [[ "${{ matrix.platform }}" == "windows-amd64" || "${{ matrix.platform }}" == "windows-arm64" ]]; then
-            mv build_output/${{ matrix.platform }}/phira-mp-server build_output/${{ matrix.platform }}/phira-mp-server-${{ matrix.platform }}.exe
-          else
-            mv build_output/${{ matrix.platform }}/phira-mp-server build_output/${{ matrix.platform }}/phira-mp-server-${{ matrix.platform }}
-          fi
+          mv build_output/${{ matrix.platform }}/phira-mp-server build_output/${{ matrix.platform }}/phira-mp-server-${{ matrix.platform }}
 
       - name: Upload Build Artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.platform }}-artifact
-          path: build_output/${{ matrix.platform }}/phira-mp-server-${{ matrix.platform }}*
+          path: build_output/${{ matrix.platform }}/phira-mp-server-${{ matrix.platform }}
+
+  build-windows:
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        platform:
+          - windows-amd64
+          - windows-arm64
+    
+    name: Build for ${{ matrix.platform }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Build project for ${{ matrix.platform }}
+        run: |
+          cargo build --release -p phira-mp-server
+
+      - name: Archive build artifact
+        run: |
+          mkdir -p build_output/${{ matrix.platform }}
+          cp target/release/phira-mp-server build_output/${{ matrix.platform }}/
+
+      - name: Rename Artifact
+        run: |
+          mv build_output/${{ matrix.platform }}/phira-mp-server build_output/${{ matrix.platform }}/phira-mp-server-${{ matrix.platform }}.exe
+
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.platform }}-artifact
+          path: build_output/${{ matrix.platform }}/phira-mp-server-${{ matrix.platform }}.exe
 
   publish:
     permissions: write-all
     if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.release_tag }}
-    needs: [build]
+    needs: [build-linux-macos-freebsd, build-windows]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
