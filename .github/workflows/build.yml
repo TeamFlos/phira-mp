@@ -39,21 +39,25 @@ jobs:
         run: |
           cargo install cross
 
+      - name: Install rust targets (for other platforms)
+        if: matrix.platform != 'freebsd/amd64' && matrix.platform != 'freebsd/arm64'
+        run: |
+          rustup target add ${{ matrix.platform }}
+
       - name: Build project for ${{ matrix.platform }}
         run: |
           if [[ "${{ matrix.platform }}" == "freebsd/amd64" || "${{ matrix.platform }}" == "freebsd/arm64" ]]; then
             # For FreeBSD, use cross for building
             cross build --target ${{ matrix.platform }} --release
           else
-            # For other platforms (Windows, Linux, macOS), use native GitHub Actions build tools
-            rustup target add ${{ matrix.platform }}
-            cargo build --target ${{ matrix.platform }} --release
+            # For other platforms (Windows, Linux, macOS), use native cargo build
+            cargo build --release -p phira-mp-server
           fi
 
       - name: Archive build artifact
         run: |
           mkdir -p build_output/${{ matrix.platform }}
-          cp target/${{ matrix.platform }}/release/phira-mp build_output/${{ matrix.platform }}/
+          cp target/${{ matrix.platform }}/release/phira-mp-server build_output/${{ matrix.platform }}/
 
   release:
     needs: build
