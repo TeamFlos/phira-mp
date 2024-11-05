@@ -109,36 +109,38 @@ jobs:
           path: bin/
 
   # Windows 构建（AMD64 & ARM64）
-  build_windows:
-    runs-on: windows-latest
+  # Windows 构建（AMD64 & ARM64）
+build_windows:
+  runs-on: windows-latest
 
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v2
+  steps:
+    - name: Checkout repository
+      uses: actions/checkout@v2
 
-      - name: Install Rust and Cross for Windows
-        run: |
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-          source $HOME/.cargo/env
-          cargo install cross
+    - name: Install Rust and Cross for Windows
+      run: |
+        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+        $env:PATH += ";$env:USERPROFILE\.cargo\bin"  # Update PATH for current session
+        cargo install cross
 
-      - name: Build for Windows (AMD64 & ARM64)
-        run: |
-          cd phira-mp
-          cargo build --target x86_64-pc-windows-msvc --release
-          cargo build --target aarch64-pc-windows-msvc --release
+    - name: Build for Windows (AMD64 & ARM64)
+      run: |
+        cd phira-mp
+        cargo build --target x86_64-pc-windows-msvc --release
+        cargo build --target aarch64-pc-windows-msvc --release
 
-      - name: Archive Windows build artifacts
-        run: |
-          mkdir -p bin
-          mv target/x86_64-pc-windows-msvc/release/phira-mp-server.exe bin/phira-mp-windows-x86_64.exe
-          mv target/aarch64-pc-windows-msvc/release/phira-mp-server.exe bin/phira-mp-windows-arm64.exe
+    - name: Archive Windows build artifacts
+      run: |
+        mkdir -p bin
+        mv target/x86_64-pc-windows-msvc/release/phira-mp-server.exe bin/phira-mp-windows-x86_64.exe
+        mv target/aarch64-pc-windows-msvc/release/phira-mp-server.exe bin/phira-mp-windows-arm64.exe
 
-      - name: Upload Windows build artifacts
-        uses: actions/upload-artifact@v3
-        with:
-          name: phira-mp-windows-artifacts
-          path: bin/
+    - name: Upload Windows build artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: phira-mp-windows-artifacts
+        path: bin/
+
 
   # 发布任务
   Publish:
