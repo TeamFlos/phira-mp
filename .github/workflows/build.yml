@@ -86,8 +86,18 @@ jobs:
 
       - name: Build for ${{ matrix.target }}
         run: |
-          cd phira-mp
-          cross build --release --target "${{ matrix.target }}" -p phira-mp-server
+          if [[ "${{ matrix.target }}" == "x86_64-unknown-freebsd" || "${{ matrix.target }}" == "aarch64-unknown-freebsd" ]]; then
+            echo "Building for FreeBSD using cross..."
+            cd phira-mp
+            cross build --release --target "${{ matrix.target }}" -p phira-mp-server
+          else
+            echo "Building for ${matrix.target} using Docker..."
+            docker run --rm \
+              -v $(pwd):/usr/src/myapp \
+              -w /usr/src/myapp \
+              rust:latest \
+              bash -c "cargo build --release --target ${matrix.target} -p phira-mp-server"
+          fi
 
   create-release:
     runs-on: ubuntu-latest
