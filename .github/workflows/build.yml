@@ -19,7 +19,6 @@ jobs:
           - os: ubuntu-latest
             target: aarch64-unknown-linux-gnu
             name: linux-arm64
-            use_cross: true
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             name: windows-amd64
@@ -41,26 +40,29 @@ jobs:
           target: ${{ matrix.target }}
           override: true
       
-      - name: Install Linux Dependencies
-        if: runner.os == 'Linux' && !matrix.use_cross
+      - name: Install Linux Dependencies (AMD64)
+        if: runner.os == 'Linux' && matrix.target == 'x86_64-unknown-linux-gnu'
         run: |
           sudo apt-get update
           sudo apt-get install -y pkg-config libssl-dev
       
-      - name: Install cross (for ARM64)
-        if: matrix.use_cross
+      - name: Install Linux Dependencies (ARM64)
+        if: runner.os == 'Linux' && matrix.target == 'aarch64-unknown-linux-gnu'
         run: |
-          cargo install cross
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+          sudo dpkg --add-architecture arm64
+          sudo apt-get update
+          sudo apt-get install -y libssl-dev:arm64 pkg-config
+          echo "PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig" >> $GITHUB_ENV
+          echo "OPENSSL_DIR=/usr/lib/aarch64-linux-gnu" >> $GITHUB_ENV
+          echo "OPENSSL_INCLUDE_DIR=/usr/include" >> $GITHUB_ENV
+          echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
           
-      - name: Build (Native)
-        if: "!matrix.use_cross && runner.os != 'Windows'"
+      - name: Build Linux
+        if: runner.os == 'Linux'
         run: |
           cargo build --release --target ${{ matrix.target }}
-          
-      - name: Build (Cross)
-        if: matrix.use_cross
-        run: |
-          cross build --release --target ${{ matrix.target }}
           
       - name: Build Windows
         if: runner.os == 'Windows'
