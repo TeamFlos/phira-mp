@@ -61,13 +61,17 @@ jobs:
 
       - name: Rename Artifact
         run: |
-          mv build_output/${{ matrix.platform }}/phira-mp-server build_output/${{ matrix.platform }}/phira-mp-server-${{ matrix.platform }}.exe
+          if [[ "${{ matrix.platform }}" == "windows-amd64" || "${{ matrix.platform }}" == "windows-arm64" ]]; then
+            mv build_output/${{ matrix.platform }}/phira-mp-server build_output/${{ matrix.platform }}/phira-mp-server-${{ matrix.platform }}.exe
+          else
+            mv build_output/${{ matrix.platform }}/phira-mp-server build_output/${{ matrix.platform }}/phira-mp-server-${{ matrix.platform }}
+          fi
 
       - name: Upload Build Artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.platform }}-artifact
-          path: build_output/${{ matrix.platform }}/phira-mp-server-${{ matrix.platform }}.exe
+          path: build_output/${{ matrix.platform }}/phira-mp-server-${{ matrix.platform }}*
 
   publish:
     permissions: write-all
