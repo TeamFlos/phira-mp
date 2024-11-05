@@ -1,3 +1,8 @@
+# 我说几句，这个项目是基于https://github.com/TeamFlos/phira-mp的Github Action自动构建。目前Release的`v1.0.0`为原版（写了绑定ipv6但实际没法连接）和`修复未能成功绑定IPv6`版（详见[TeamFlos/phira-mp-issue15](https://github.com/TeamFlos/phira-mp/issues/15)
+QEMU牛逼！
+
+---
+
 # phira-mp
 
 `phira-mp` is a project developed with Rust. Below are the steps to deploy and run this project.
