@@ -9,129 +9,71 @@ on:
         default: 'v1.0.0'
 
 jobs:
-  build_windows:
-    name: Build for Windows
-    runs-on: windows-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-
-      - name: Build project for Windows
-        run: |
-          cargo build --release -p phira-mp-server --target x86_64-pc-windows-msvc
-
-      - name: Archive build artifact
-        run: |
-          mkdir -p build_output/windows-amd64
-          cp target/x86_64-pc-windows-msvc/release/phira-mp-server.exe build_output/windows-amd64/
-
-      - name: Rename Artifact
-        run: |
-          mv build_output/windows-amd64/phira-mp-server.exe build_output/windows-amd64/phira-mp-server-windows-amd64.exe
-
-      - name: Upload Build Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: windows-amd64-artifact
-          path: build_output/windows-amd64/phira-mp-server-windows-amd64.exe
-
-  build_linux:
-    name: Build for Linux
+  build:
+    name: Cross-Compile for Multiple Platforms
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [windows, linux, freebsd, aarch64]
+        include:
+          - os: windows
+            target: x86_64-pc-windows-msvc
+            artifact_name: phira-mp-server-windows-amd64.exe
+          - os: linux
+            target: x86_64-unknown-linux-gnu
+            artifact_name: phira-mp-server-linux-amd64
+          - os: freebsd
+            target: x86_64-unknown-freebsd
+            artifact_name: phira-mp-server-freebsd-amd64
+          - os: aarch64
+            target: aarch64-unknown-linux-gnu
+            artifact_name: phira-mp-server-aarch64
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Build project for Linux
+      - name: Set up Rust environment
         run: |
-          cargo build --release -p phira-mp-server
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+          source $HOME/.cargo/env
 
-      - name: Archive build artifact
-        run: |
-          mkdir -p build_output/linux-amd64
-          cp target/release/phira-mp-server build_output/linux-amd64/
-
-      - name: Rename Artifact
-        run: |
-          mv build_output/linux-amd64/phira-mp-server build_output/linux-amd64/phira-mp-server-linux-amd64
-
-      - name: Upload Build Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: linux-amd64-artifact
-          path: build_output/linux-amd64/phira-mp-server-linux-amd64
-
-  build_freebsd:
-    name: Build for FreeBSD
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-
-      - name: Install dependencies
+      - name: Install QEMU for aarch64
+        if: matrix.os == 'aarch64'
         run: |
           sudo apt-get update
-          sudo apt-get install -y pkg-config libssl-dev
+          sudo apt-get install -y qemu-user-static
 
-      - name: Install cross
+      - name: Build project for ${{ matrix.os }}
         run: |
-          cargo install cross
-
-      - name: Build project for FreeBSD
-        run: |
-          cross build --release -p phira-mp-server --target x86_64-unknown-freebsd
+          if [ "${{ matrix.os }}" == "aarch64" ]; then
+            docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
+            cargo build --release -p phira-mp-server --target ${{ matrix.target }}
+          else
+            cargo build --release -p phira-mp-server --target ${{ matrix.target }}
+          fi
 
       - name: Archive build artifact
         run: |
-          mkdir -p build_output/freebsd-amd64
-          cp target/x86_64-unknown-freebsd/release/phira-mp-server build_output/freebsd-amd64/
-
-      - name: Rename Artifact
-        run: |
-          mv build_output/freebsd-amd64/phira-mp-server build_output/freebsd-amd64/phira-mp-server-freebsd-amd64
+          mkdir -p build_output/${{ matrix.os }}-amd64
+          # Ensure correct renaming for aarch64
+          if [ "${{ matrix.os }}" == "aarch64" ]; then
+            mv target/${{ matrix.target }}/release/phira-mp-server build_output/${{ matrix.os }}-amd64/phira-mp-server-aarch64
+          else
+            mv target/${{ matrix.target }}/release/phira-mp-server build_output/${{ matrix.os }}-amd64/${{ matrix.artifact_name }}
+          fi
 
       - name: Upload Build Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: freebsd-amd64-artifact
-          path: build_output/freebsd-amd64/phira-mp-server-freebsd-amd64
+          name: ${{ matrix.os }}-artifact
+          path: build_output/${{ matrix.os }}-amd64/${{ matrix.artifact_name }}
 
-  build_aarch64:
-    name: Build for aarch64
-    runs-on: ubuntu-22.04
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-
-      - name: Build project for aarch64
-        uses: uraimo/run-on-arch-action@v2
-        id: runcmd
-        with:
-          arch: aarch64
-          distro: ubuntu22.04
-          githubToken: ${{ github.token }}
-          run: |
-            cargo build --release -p phira-mp-server
-
-      - name: Archive build artifact
-        run: |
-          mkdir -p build_output/aarch64
-          cp target/aarch64-unknown-linux-gnu/release/phira-mp-server build_output/aarch64/
-
-      - name: Rename Artifact
-        run: |
-          mv build_output/aarch64/phira-mp-server build_output/aarch64/phira-mp-server-aarch64
-
-      - name: Upload Build Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: aarch64-artifact
-          path: build_output/aarch64/phira-mp-server-aarch64
 
   publish:
     permissions: write-all
     if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.release_tag }}
-    needs: [build_windows, build_linux, build_freebsd, build_aarch64]
+    needs: build
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -145,7 +87,6 @@ jobs:
 
       - name: Upload Release
         uses: softprops/action-gh-release@v2
-        if: ${{ success() }}
         with:
           tag_name: ${{ github.event.inputs.release_tag }}
           files: bin/*
