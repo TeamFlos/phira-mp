@@ -10,7 +10,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest  # 这是整个构建任务的运行环境
 
     steps:
       - name: Checkout repository
@@ -28,7 +28,7 @@ jobs:
           cargo install cross
 
       - name: Build for Windows AMD64
-        runs-on: windows-latest
+        runs-on: windows-latest  # 这里需要指定单独的运行环境
         steps:
           - name: Checkout repository
             uses: actions/checkout@v2
