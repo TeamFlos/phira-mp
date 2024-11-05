@@ -5,7 +5,7 @@ on:
     inputs:
       release_tag:
         description: 'Release Tag'
-        required: false
+        required: true
         default: 'v1.0.0'
 
 jobs:
@@ -25,8 +25,9 @@ jobs:
 
       - name: Build project for Windows (${{ matrix.architecture }})
         run: |
-          cross build --release -p phira-mp-server --target x86_64-pc-windows-msvc  # amd64 架构
-          if [ "${{ matrix.architecture }}" == "aarch64" ]; then
+          if [ "${{ matrix.architecture }}" == "x86_64" ]; then
+            cross build --release -p phira-mp-server --target x86_64-pc-windows-msvc  # amd64 架构
+          elif [ "${{ matrix.architecture }}" == "aarch64" ]; then
             cross build --release -p phira-mp-server --target aarch64-pc-windows-msvc  # arm64 架构
           fi
 
@@ -34,13 +35,14 @@ jobs:
         run: |
           mkdir -p build_output/windows-${{ matrix.architecture }}
           cp target/${{ matrix.architecture }}-pc-windows-msvc/release/phira-mp-server.exe build_output/windows-${{ matrix.architecture }}/
+          mv build_output/windows-${{ matrix.architecture }}/phira-mp-server.exe build_output/windows-${{ matrix.architecture }}/phira-mp-server-windows-${{ matrix.architecture }}.exe
 
   # Build for macOS (amd64 & arm64)
   build_macos:
     runs-on: macos-latest
     strategy:
       matrix:
-        architecture: [x86_64, aarch64]  # x86_64 和 arm64 架构
+        architecture: [x86_64, aarch64]  # x86_64 和 aarch64 架构
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
@@ -51,8 +53,9 @@ jobs:
 
       - name: Build project for macOS (${{ matrix.architecture }})
         run: |
-          cross build --release -p phira-mp-server --target x86_64-apple-darwin  # amd64 架构
-          if [ "${{ matrix.architecture }}" == "aarch64" ]; then
+          if [ "${{ matrix.architecture }}" == "x86_64" ]; then
+            cross build --release -p phira-mp-server --target x86_64-apple-darwin  # amd64 架构
+          elif [ "${{ matrix.architecture }}" == "aarch64" ]; then
             cross build --release -p phira-mp-server --target aarch64-apple-darwin  # arm64 架构
           fi
 
@@ -60,13 +63,14 @@ jobs:
         run: |
           mkdir -p build_output/macos-${{ matrix.architecture }}
           cp target/${{ matrix.architecture }}-apple-darwin/release/phira-mp-server build_output/macos-${{ matrix.architecture }}/
+          mv build_output/macos-${{ matrix.architecture }}/phira-mp-server build_output/macos-${{ matrix.architecture }}/phira-mp-server-macos-${{ matrix.architecture }}
 
   # Build for Linux (amd64 & arm64)
   build_linux:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        architecture: [x86_64, aarch64]  # x86_64 和 arm64 架构
+        architecture: [x86_64, aarch64]  # x86_64 和 aarch64 架构
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
@@ -77,8 +81,9 @@ jobs:
 
       - name: Build project for Linux (${{ matrix.architecture }})
         run: |
-          cross build --release -p phira-mp-server --target x86_64-unknown-linux-gnu  # amd64 架构
-          if [ "${{ matrix.architecture }}" == "aarch64" ]; then
+          if [ "${{ matrix.architecture }}" == "x86_64" ]; then
+            cross build --release -p phira-mp-server --target x86_64-unknown-linux-gnu  # amd64 架构
+          elif [ "${{ matrix.architecture }}" == "aarch64" ]; then
             cross build --release -p phira-mp-server --target aarch64-unknown-linux-gnu  # arm64 架构
           fi
 
@@ -86,6 +91,7 @@ jobs:
         run: |
           mkdir -p build_output/linux-${{ matrix.architecture }}
           cp target/${{ matrix.architecture }}-unknown-linux-gnu/release/phira-mp-server build_output/linux-${{ matrix.architecture }}/
+          mv build_output/linux-${{ matrix.architecture }}/phira-mp-server build_output/linux-${{ matrix.architecture }}/phira-mp-server-linux-${{ matrix.architecture }}
 
   # Build for FreeBSD (amd64)
   build_freebsd:
@@ -106,6 +112,7 @@ jobs:
         run: |
           mkdir -p build_output/freebsd-amd64
           cp target/x86_64-unknown-freebsd/release/phira-mp-server build_output/freebsd-amd64/
+          mv build_output/freebsd-amd64/phira-mp-server build_output/freebsd-amd64/phira-mp-server-freebsd-amd64
 
   # Upload build artifacts
   publish:
@@ -124,5 +131,5 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.event.inputs.release_tag }}
-          files: build_output/**/*
+          files: build_output/**/*  # 将所有文件上传
           prerelease: false
