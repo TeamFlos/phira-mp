@@ -1,105 +1,118 @@
-name: Rust Build and Release
+name: Build and Release
 
 on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Tag for the release'
-        required: false
+        description: 'Release tag'
+        required: true
         default: 'v1.0.0'
 
 jobs:
-  build:
-    runs-on: ${{ matrix.os }}
+  build-native:
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-        arch: [amd64, arm64]
         include:
           - os: ubuntu-latest
-            arch: amd64
+            target: x86_64-unknown-linux-gnu
+            name: linux-amd64
           - os: ubuntu-latest
-            arch: arm64
+            target: aarch64-unknown-linux-gnu
+            name: linux-arm64
           - os: windows-latest
-            arch: amd64
-          - os: macos-latest
-            arch: amd64
-          - os: ubuntu-latest  # 用于构建 FreeBSD 的 Linux 环境
-            arch: amd64
+            target: x86_64-pc-windows-msvc
+            name: windows-amd64
+          - os: windows-latest
+            target: aarch64-pc-windows-msvc
+            name: windows-arm64
 
+    runs-on: ${{ matrix.os }}
+    
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Install dependencies
-        run: |
-          if [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
-            sudo apt update
-            sudo apt install -y pkg-config libssl-dev
-            if [[ "${{ matrix.arch }}" == "amd64" ]]; then
-              # Install cross for FreeBSD build
-              cargo install cross
-            fi
-          fi
-
-      - name: Set up Rust toolchain
-        uses: actions-rust-lang/setup-rust-toolchain@v1
+      - uses: actions/checkout@v4
         with:
-          rust-version: stable
-
-      - name: Build phira-mp
+          repository: 'TeamFlos/phira-mp'
+      
+      - name: Setup Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          target: ${{ matrix.target }}
+          override: true
+      
+      - name: Install Linux Dependencies
+        if: runner.os == 'Linux'
         run: |
-          cd phira-mp
-          if [[ "${{ matrix.os }}" == "ubuntu-latest" && "${{ matrix.arch }}" == "amd64" ]]; then
-            if [[ "${{ matrix.arch }}" == "amd64" ]]; then
-              # Build FreeBSD using cross
-              cross build --target x86_64-unknown-freebsd --release -p phira-mp-server
-            fi
+          sudo apt-get update
+          sudo apt-get install -y pkg-config libssl-dev
+      
+      - name: Build
+        if: runner.os != 'Windows'
+        run: |
+          cargo build --release --target ${{ matrix.target }}
+          
+      - name: Build Windows
+        if: runner.os == 'Windows'
+        run: |
+          cargo build --release --target ${{ matrix.target }}
+        
+      - name: Rename artifacts
+        shell: bash
+        run: |
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            mv target/${{ matrix.target }}/release/phira-mp-server.exe phira-mp-server-${{ matrix.name }}.exe
           else
-            # Native build for other OS and Arch
-            cargo build --release -p phira-mp-server --target ${{ matrix.arch }}-${{ matrix.os }}
+            mv target/${{ matrix.target }}/release/phira-mp-server phira-mp-server-${{ matrix.name }}
           fi
+      
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: phira-mp-server-${{ matrix.name }}
+          path: |
+            phira-mp-server-${{ matrix.name }}
+            phira-mp-server-${{ matrix.name }}.exe
+          if-no-files-found: ignore
 
-      - name: Rename Build Artifacts
+  build-freebsd:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: 'TeamFlos/phira-mp'
+      
+      - name: Install cross
+        run: cargo install cross
+      
+      - name: Build FreeBSD
         run: |
-          if [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
-            if [[ "${{ matrix.arch }}" == "amd64" ]]; then
-              mv target/x86_64-unknown-linux-gnu/release/phira-mp-server phira-mp-linux-x86_64
-              mv target/aarch64-unknown-linux-gnu/release/phira-mp-server phira-mp-linux-arm64
-            fi
-          fi
+          cross build --release --target x86_64-unknown-freebsd
+      
+      - name: Rename artifacts
+        run: |
+          mv target/x86_64-unknown-freebsd/release/phira-mp-server phira-mp-server-freebsd-amd64
+      
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: phira-mp-server-freebsd-amd64
+          path: phira-mp-server-freebsd-amd64
 
-          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-            if [[ "${{ matrix.arch }}" == "amd64" ]]; then
-              mv target/x86_64-pc-windows-gnu/release/phira-mp-server.exe phira-mp-win-x86_64.exe
-            else
-              mv target/aarch64-pc-windows-gnu/release/phira-mp-server.exe phira-mp-win-arm64.exe
-            fi
-          fi
-
-          if [[ "${{ matrix.os }}" == "macos-latest" ]]; then
-            mv target/x86_64-apple-darwin/release/phira-mp-server phira-mp-macos-x86_64
-          fi
-
-          # Rename FreeBSD artifact
-          if [[ "${{ matrix.os }}" == "ubuntu-latest" && "${{ matrix.arch }}" == "amd64" ]]; then
-            mv target/x86_64-unknown-freebsd/release/phira-mp-server phira-mp-freebsd-x86_64
-          fi
-
-      - name: Create GitHub Release
+  create-release:
+    needs: [build-native, build-freebsd]
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v3
+      
+      - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ github.event.inputs.tag }}
+          generate_release_notes: true
+          files: |
+            */phira-mp-server-*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload Release Assets
-        uses: softprops/action-gh-release@v1
-        with:
-          files: |
-            phira-mp-linux-x86_64
-            phira-mp-linux-arm64
-            phira-mp-win-x86_64.exe
-            phira-mp-win-arm64.exe
-            phira-mp-macos-x86_64
-            phira-mp-freebsd-x86_64
