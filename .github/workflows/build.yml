@@ -62,7 +62,7 @@ jobs:
       - name: Upload build artifacts
         uses: actions/upload-artifact@v3
         with:
-          name: ${{ matrix.platform //\//- }}  # 将 '/' 替换为 '-'
+          name: ${{ matrix.platform }}
           path: build_output/${{ matrix.platform }}
 
   release:
