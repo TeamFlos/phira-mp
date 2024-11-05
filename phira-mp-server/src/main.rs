@@ -16,7 +16,7 @@ use std::{
         hash_map::{Entry, VacantEntry},
         HashMap,
     },
-    net::{Ipv4Addr, Ipv6Addr, SocketAddr},
+    net::{Ipv6Addr, SocketAddr},
     path::Path,
 };
 use tokio::{net::TcpListener, sync::RwLock};
@@ -101,7 +101,6 @@ async fn main() -> Result<()> {
     let args = Args::parse();
     let port = args.port;
     let addrs: &[SocketAddr] = &[
-        SocketAddr::new(Ipv4Addr::UNSPECIFIED.into(), port),
         SocketAddr::new(Ipv6Addr::UNSPECIFIED.into(), port),
     ];
 
