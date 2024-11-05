@@ -9,74 +9,97 @@ on:
         default: 'v1.0.0'
 
 jobs:
-  build:
-    strategy:
-      matrix:
-        platform:
-          - windows-amd64
-          - linux-amd64
-          - freebsd-amd64  # 只构建 FreeBSD 的 AMD64 版本
-    name: Build for ${{ matrix.platform }}
-    
-    runs-on: ${{ matrix.platform == 'windows-amd64' && 'windows-latest' || 'ubuntu-latest' }}  # Windows 使用 windows-latest，其他使用 ubuntu-latest
-    
+  build_windows:
+    name: Build for Windows
+    runs-on: windows-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Install dependencies (for FreeBSD only)
-        if: matrix.platform == 'freebsd-amd64'
+      - name: Build project for Windows
         run: |
-          sudo apt-get update
-          sudo apt-get install -y pkg-config libssl-dev
-          
-      - name: Install cross (for FreeBSD only)
-        if: matrix.platform == 'freebsd-amd64'
-        run: |
-          cargo install cross
-
-      - name: Build project for ${{ matrix.platform }}
-        run: |
-          if [[ "${{ matrix.platform }}" == "freebsd-amd64" ]]; then
-            # For FreeBSD, use cross for building (only AMD64)
-            cross build --release -p phira-mp-server --target x86_64-unknown-freebsd
-          elif [[ "${{ matrix.platform }}" == "windows-amd64" ]]; then
-            # For Windows, use native build with Windows target
-            cargo build --release -p phira-mp-server --target x86_64-pc-windows-msvc
-          else
-            # For Linux, use native build
-            cargo build --release -p phira-mp-server
-          fi
+          cargo build --release -p phira-mp-server --target x86_64-pc-windows-msvc
 
       - name: Archive build artifact
         run: |
-          mkdir -p build_output/${{ matrix.platform }}
-          if [[ "${{ matrix.platform }}" == "freebsd-amd64" ]]; then
-            cp target/x86_64-unknown-freebsd/release/phira-mp-server build_output/${{ matrix.platform }}/
-          elif [[ "${{ matrix.platform }}" == "windows-amd64" ]]; then
-            cp target/x86_64-pc-windows-msvc/release/phira-mp-server.exe build_output/${{ matrix.platform }}/
-          else
-            cp target/release/phira-mp-server build_output/${{ matrix.platform }}/
-          fi
+          mkdir -p build_output/windows-amd64
+          cp target/x86_64-pc-windows-msvc/release/phira-mp-server.exe build_output/windows-amd64/
 
       - name: Rename Artifact
         run: |
-          if [[ "${{ matrix.platform }}" == "windows-amd64" ]]; then
-            mv build_output/${{ matrix.platform }}/phira-mp-server.exe build_output/${{ matrix.platform }}/phira-mp-server-${{ matrix.platform }}.exe
-          else
-            mv build_output/${{ matrix.platform }}/phira-mp-server build_output/${{ matrix.platform }}/phira-mp-server-${{ matrix.platform }}
-          fi
+          mv build_output/windows-amd64/phira-mp-server.exe build_output/windows-amd64/phira-mp-server-windows-amd64.exe
 
       - name: Upload Build Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.platform }}-artifact
-          path: build_output/${{ matrix.platform }}/phira-mp-server-${{ matrix.platform }}*
+          name: windows-amd64-artifact
+          path: build_output/windows-amd64/phira-mp-server-windows-amd64.exe
+
+  build_linux:
+    name: Build for Linux
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Build project for Linux
+        run: |
+          cargo build --release -p phira-mp-server
+
+      - name: Archive build artifact
+        run: |
+          mkdir -p build_output/linux-amd64
+          cp target/release/phira-mp-server build_output/linux-amd64/
+
+      - name: Rename Artifact
+        run: |
+          mv build_output/linux-amd64/phira-mp-server build_output/linux-amd64/phira-mp-server-linux-amd64
+
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-amd64-artifact
+          path: build_output/linux-amd64/phira-mp-server-linux-amd64
+
+  build_freebsd:
+    name: Build for FreeBSD
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pkg-config libssl-dev
+
+      - name: Install cross
+        run: |
+          cargo install cross
+
+      - name: Build project for FreeBSD
+        run: |
+          cross build --release -p phira-mp-server --target x86_64-unknown-freebsd
+
+      - name: Archive build artifact
+        run: |
+          mkdir -p build_output/freebsd-amd64
+          cp target/x86_64-unknown-freebsd/release/phira-mp-server build_output/freebsd-amd64/
+
+      - name: Rename Artifact
+        run: |
+          mv build_output/freebsd-amd64/phira-mp-server build_output/freebsd-amd64/phira-mp-server-freebsd-amd64
+
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: freebsd-amd64-artifact
+          path: build_output/freebsd-amd64/phira-mp-server-freebsd-amd64
 
   publish:
     permissions: write-all
     if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.release_tag }}
-    needs: [build]
+    needs: [build_windows, build_linux, build_freebsd]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
