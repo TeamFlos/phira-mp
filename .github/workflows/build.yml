@@ -9,9 +9,8 @@ on:
         default: 'v1.0.0'
 
 jobs:
-  build:
-    runs-on: ubuntu-latest  # 这是整个构建任务的运行环境
-
+  build-ubuntu:
+    runs-on: ubuntu-latest  # Ubuntu 环境
     steps:
       - name: Checkout repository
         uses: actions/checkout@v2
@@ -26,24 +25,6 @@ jobs:
       - name: Install cross
         run: |
           cargo install cross
-
-      - name: Build for Windows AMD64
-        runs-on: windows-latest  # 这里需要指定单独的运行环境
-        steps:
-          - name: Checkout repository
-            uses: actions/checkout@v2
-
-          - name: Set up Rust
-            uses: actions-rs/toolchain@v1
-            with:
-              toolchain: nightly
-              override: true
-              components: rustfmt
-
-          - name: Build for Windows AMD64
-            run: |
-              rustup target add x86_64-pc-windows-msvc
-              cargo build --release -p phira-mp-server --target x86_64-pc-windows-msvc
 
       - name: Build for Linux AMD64
         run: cross build --release -p phira-mp-server --target x86_64-unknown-linux-gnu
@@ -63,6 +44,27 @@ jobs:
       - name: Build for FreeBSD Arm64
         run: cross build --release -p phira-mp-server --target aarch64-unknown-freebsd
 
+  build-windows:
+    runs-on: windows-latest  # Windows 环境
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Set up Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          override: true
+          components: rustfmt
+
+      - name: Build for Windows AMD64
+        run: |
+          rustup target add x86_64-pc-windows-msvc
+          cargo build --release -p phira-mp-server --target x86_64-pc-windows-msvc
+
+  rename-binaries:
+    runs-on: ubuntu-latest  # 可以选择任意环境
+    steps:
       - name: Rename binaries
         run: |
           mkdir -p release
@@ -74,6 +76,9 @@ jobs:
           cp target/x86_64-unknown-freebsd/release/phira-mp-server release/phira-mp-server-freebsd-amd64
           cp target/aarch64-unknown-freebsd/release/phira-mp-server release/phira-mp-server-freebsd-arm64
 
+  create-release:
+    runs-on: ubuntu-latest  # 可以选择任意环境
+    steps:
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
