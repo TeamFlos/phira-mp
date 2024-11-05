@@ -37,17 +37,12 @@ jobs:
         if: matrix.platform == 'freebsd/amd64'
         run: |
           cargo install cross
-
-      - name: Install Rust target for FreeBSD
-        if: matrix.platform == 'freebsd/amd64'
-        run: |
-          rustup target add freebsd/amd64
           
       - name: Build project for ${{ matrix.platform }}
         run: |
           if [[ "${{ matrix.platform }}" == "freebsd/amd64" ]]; then
             # For FreeBSD, use cross for building (only AMD64)
-            cross build --target freebsd/amd64 --release
+            cross build --release -p phira-mp-server --target x86_64-unknown-freebsd
           else
             # For other platforms (Windows, Linux, macOS), use native cargo build
             cargo build --release -p phira-mp-server
