@@ -21,26 +21,23 @@ jobs:
           sudo apt install -y pkg-config libssl-dev
 
       - name: Set up Rust
-        uses: actions/setup-rust@v1
+        uses: rust-lang/setup-rust@v1
         with:
           rust-version: stable
 
-      - name: Install Cross for Cross-compilation
-        run: cargo install cross
+      - name: Build for Linux AMD64 (native)
+        run: cargo build --target x86_64-unknown-linux-gnu --release
 
-      - name: Build for Linux AMD64
-        run: cross build --target x86_64-unknown-linux-gnu --release
+      - name: Build for Windows AMD64 (native)
+        run: cargo build --target x86_64-pc-windows-gnu --release
 
-      - name: Build for Windows AMD64
-        run: cross build --target x86_64-pc-windows-gnu --release
+      - name: Build for Linux ARM64 (native)
+        run: cargo build --target aarch64-unknown-linux-gnu --release
 
-      - name: Build for Linux ARM64
-        run: cross build --target aarch64-unknown-linux-gnu --release
+      - name: Build for Windows ARM64 (native)
+        run: cargo build --target aarch64-pc-windows-gnu --release
 
-      - name: Build for Windows ARM64
-        run: cross build --target aarch64-pc-windows-gnu --release
-
-      - name: Build for FreeBSD AMD64
+      - name: Build for FreeBSD AMD64 (using cross)
         run: cross build --target x86_64-unknown-freebsd --release
 
       - name: Rename Build Artifacts
