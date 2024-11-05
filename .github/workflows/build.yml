@@ -5,11 +5,11 @@ on:
     inputs:
       release_tag:
         description: 'Release Tag'
-        required: true
+        required: false
         default: 'v1.0.0'
 
 jobs:
-  # Build for Windows (amd64 & arm64)
+  # Build for Windows (amd64 & arm64) using cargo for local build
   build_windows:
     runs-on: windows-latest
     strategy:
@@ -19,16 +19,16 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Install Rust and cross for Windows
+      - name: Install Rust for Windows
         run: |
-          cargo install cross
+          choco install rust
 
       - name: Build project for Windows (${{ matrix.architecture }})
         run: |
           if [ "${{ matrix.architecture }}" == "x86_64" ]; then
-            cross build --release -p phira-mp-server --target x86_64-pc-windows-msvc  # amd64 架构
+            cargo build --release -p phira-mp-server --target x86_64-pc-windows-msvc  # amd64 架构
           elif [ "${{ matrix.architecture }}" == "aarch64" ]; then
-            cross build --release -p phira-mp-server --target aarch64-pc-windows-msvc  # arm64 架构
+            cargo build --release -p phira-mp-server --target aarch64-pc-windows-msvc  # arm64 架构
           fi
 
       - name: Archive build artifact
@@ -37,7 +37,7 @@ jobs:
           cp target/${{ matrix.architecture }}-pc-windows-msvc/release/phira-mp-server.exe build_output/windows-${{ matrix.architecture }}/
           mv build_output/windows-${{ matrix.architecture }}/phira-mp-server.exe build_output/windows-${{ matrix.architecture }}/phira-mp-server-windows-${{ matrix.architecture }}.exe
 
-  # Build for macOS (amd64 & arm64)
+  # Build for macOS (amd64 & arm64) using cargo for local build
   build_macos:
     runs-on: macos-latest
     strategy:
@@ -47,16 +47,16 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Install Rust and cross for macOS
+      - name: Install Rust for macOS
         run: |
-          cargo install cross
+          brew install rust
 
       - name: Build project for macOS (${{ matrix.architecture }})
         run: |
           if [ "${{ matrix.architecture }}" == "x86_64" ]; then
-            cross build --release -p phira-mp-server --target x86_64-apple-darwin  # amd64 架构
+            cargo build --release -p phira-mp-server --target x86_64-apple-darwin  # amd64 架构
           elif [ "${{ matrix.architecture }}" == "aarch64" ]; then
-            cross build --release -p phira-mp-server --target aarch64-apple-darwin  # arm64 架构
+            cargo build --release -p phira-mp-server --target aarch64-apple-darwin  # arm64 架构
           fi
 
       - name: Archive build artifact
@@ -65,7 +65,7 @@ jobs:
           cp target/${{ matrix.architecture }}-apple-darwin/release/phira-mp-server build_output/macos-${{ matrix.architecture }}/
           mv build_output/macos-${{ matrix.architecture }}/phira-mp-server build_output/macos-${{ matrix.architecture }}/phira-mp-server-macos-${{ matrix.architecture }}
 
-  # Build for Linux (amd64 & arm64)
+  # Build for Linux (amd64 & arm64) using cargo for local build
   build_linux:
     runs-on: ubuntu-latest
     strategy:
@@ -75,16 +75,17 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Install Rust and cross for Linux
+      - name: Install Rust for Linux
         run: |
-          cargo install cross
+          sudo apt-get update
+          sudo apt-get install -y rustc
 
       - name: Build project for Linux (${{ matrix.architecture }})
         run: |
           if [ "${{ matrix.architecture }}" == "x86_64" ]; then
-            cross build --release -p phira-mp-server --target x86_64-unknown-linux-gnu  # amd64 架构
+            cargo build --release -p phira-mp-server --target x86_64-unknown-linux-gnu  # amd64 架构
           elif [ "${{ matrix.architecture }}" == "aarch64" ]; then
-            cross build --release -p phira-mp-server --target aarch64-unknown-linux-gnu  # arm64 架构
+            cargo build --release -p phira-mp-server --target aarch64-unknown-linux-gnu  # arm64 架构
           fi
 
       - name: Archive build artifact
@@ -93,7 +94,7 @@ jobs:
           cp target/${{ matrix.architecture }}-unknown-linux-gnu/release/phira-mp-server build_output/linux-${{ matrix.architecture }}/
           mv build_output/linux-${{ matrix.architecture }}/phira-mp-server build_output/linux-${{ matrix.architecture }}/phira-mp-server-linux-${{ matrix.architecture }}
 
-  # Build for FreeBSD (amd64)
+  # Build for FreeBSD (amd64) using cross
   build_freebsd:
     runs-on: ubuntu-latest  # 这里可以使用 Ubuntu 来进行交叉编译
     steps:
