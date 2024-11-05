@@ -28,21 +28,26 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Install dependencies
+      - name: Install dependencies (for FreeBSD only)
+        if: matrix.platform == 'freebsd/amd64' || matrix.platform == 'freebsd/arm64'
         run: |
           sudo apt-get update
           sudo apt-get install -y pkg-config libssl-dev
 
-      - name: Install cross
+      - name: Install cross (for FreeBSD only)
+        if: matrix.platform == 'freebsd/amd64' || matrix.platform == 'freebsd/arm64'
         run: |
           cargo install cross
 
       - name: Build project for ${{ matrix.platform }}
         run: |
           if [[ "${{ matrix.platform }}" == "freebsd/amd64" || "${{ matrix.platform }}" == "freebsd/arm64" ]]; then
+            # For FreeBSD, use cross for building
             cross build --target ${{ matrix.platform }} --release
           else
-            cross build --target ${{ matrix.platform }} --release
+            # For other platforms (Windows, Linux, macOS), use native GitHub Actions build tools
+            rustup target add ${{ matrix.platform }}
+            cargo build --target ${{ matrix.platform }} --release
           fi
 
       - name: Archive build artifact
