@@ -10,43 +10,81 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v2
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        arch: [amd64, arm64]
+        include:
+          - os: ubuntu-latest
+            arch: amd64
+          - os: ubuntu-latest
+            arch: arm64
+          - os: windows-latest
+            arch: amd64
+          - os: macos-latest
+            arch: amd64
+          - os: ubuntu-latest  # 需要用于 FreeBSD 构建的 linux 环境
+            arch: amd64
 
-      - name: Install Dependencies
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
         run: |
-          sudo apt update
-          sudo apt install -y pkg-config libssl-dev
+          if [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
+            sudo apt update
+            sudo apt install -y pkg-config libssl-dev
+            if [[ "${{ matrix.arch }}" == "amd64" ]]; then
+              # Install cross for FreeBSD build
+              cargo install cross
+            fi
+          fi
 
       - name: Set up Rust
         uses: rust-lang/setup-rust@v1
         with:
           rust-version: stable
 
-      - name: Build for Linux AMD64 (native)
-        run: cargo build --target x86_64-unknown-linux-gnu --release
-
-      - name: Build for Windows AMD64 (native)
-        run: cargo build --target x86_64-pc-windows-gnu --release
-
-      - name: Build for Linux ARM64 (native)
-        run: cargo build --target aarch64-unknown-linux-gnu --release
-
-      - name: Build for Windows ARM64 (native)
-        run: cargo build --target aarch64-pc-windows-gnu --release
-
-      - name: Build for FreeBSD AMD64 (using cross)
-        run: cross build --target x86_64-unknown-freebsd --release
+      - name: Build phira-mp
+        run: |
+          cd phira-mp
+          if [[ "${{ matrix.os }}" == "ubuntu-latest" && "${{ matrix.arch }}" == "amd64" ]]; then
+            if [[ "${{ matrix.arch }}" == "amd64" ]]; then
+              # Build FreeBSD using cross
+              cross build --target x86_64-unknown-freebsd --release -p phira-mp-server
+            fi
+          else
+            # Native build for other OS and Arch
+            cargo build --release -p phira-mp-server --target ${{ matrix.arch }}-${{ matrix.os }}
+          fi
 
       - name: Rename Build Artifacts
         run: |
-          mv target/x86_64-unknown-linux-gnu/release/phira-mp target/phira-mp-linux-x86_64
-          mv target/x86_64-pc-windows-gnu/release/phira-mp.exe target/phira-mp-win-x86_64.exe
-          mv target/aarch64-unknown-linux-gnu/release/phira-mp target/phira-mp-linux-arm64
-          mv target/aarch64-pc-windows-gnu/release/phira-mp.exe target/phira-mp-win-arm64.exe
-          mv target/x86_64-unknown-freebsd/release/phira-mp target/phira-mp-freebsd-x86_64
+          if [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
+            if [[ "${{ matrix.arch }}" == "amd64" ]]; then
+              mv target/x86_64-unknown-linux-gnu/release/phira-mp-server phira-mp-linux-x86_64
+              mv target/aarch64-unknown-linux-gnu/release/phira-mp-server phira-mp-linux-arm64
+            fi
+          fi
+
+          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+            if [[ "${{ matrix.arch }}" == "amd64" ]]; then
+              mv target/x86_64-pc-windows-gnu/release/phira-mp-server.exe phira-mp-win-x86_64.exe
+            else
+              mv target/aarch64-pc-windows-gnu/release/phira-mp-server.exe phira-mp-win-arm64.exe
+            fi
+          fi
+
+          if [[ "${{ matrix.os }}" == "macos-latest" ]]; then
+            mv target/x86_64-apple-darwin/release/phira-mp-server phira-mp-macos-x86_64
+          fi
+
+          # Rename FreeBSD artifact
+          if [[ "${{ matrix.os }}" == "ubuntu-latest" && "${{ matrix.arch }}" == "amd64" ]]; then
+            mv target/x86_64-unknown-freebsd/release/phira-mp-server phira-mp-freebsd-x86_64
+          fi
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
@@ -59,8 +97,9 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            target/phira-mp-linux-x86_64
-            target/phira-mp-win-x86_64.exe
-            target/phira-mp-linux-arm64
-            target/phira-mp-win-arm64.exe
-            target/phira-mp-freebsd-x86_64
+            phira-mp-linux-x86_64
+            phira-mp-linux-arm64
+            phira-mp-win-x86_64.exe
+            phira-mp-win-arm64.exe
+            phira-mp-macos-x86_64
+            phira-mp-freebsd-x86_64
