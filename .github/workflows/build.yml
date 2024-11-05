@@ -20,8 +20,7 @@ jobs:
           - linux/arm64
           - macos/amd64
           - macos/arm64
-          - freebsd/amd64
-          - freebsd/arm64
+          - freebsd/amd64  # 只构建FreeBSD的AMD64版本
     name: Build for ${{ matrix.platform }}
     
     steps:
@@ -29,30 +28,25 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Install dependencies (for FreeBSD only)
-        if: matrix.platform == 'freebsd/amd64' || matrix.platform == 'freebsd/arm64'
+        if: matrix.platform == 'freebsd/amd64'
         run: |
           sudo apt-get update
           sudo apt-get install -y pkg-config libssl-dev
 
       - name: Install cross (for FreeBSD only)
-        if: matrix.platform == 'freebsd/amd64' || matrix.platform == 'freebsd/arm64'
+        if: matrix.platform == 'freebsd/amd64'
         run: |
           cargo install cross
 
       - name: Install rust targets (for other platforms)
-        if: matrix.platform != 'freebsd/amd64' && matrix.platform != 'freebsd/arm64'
+        if: matrix.platform != 'freebsd/amd64'
         run: |
           rustup target add ${{ matrix.platform }}
 
-      - name: Install FreeBSD ARM64 target (if needed)
-        if: matrix.platform == 'freebsd/arm64'
-        run: |
-          rustup target add aarch64-unknown-freebsd
-
       - name: Build project for ${{ matrix.platform }}
         run: |
-          if [[ "${{ matrix.platform }}" == "freebsd/amd64" || "${{ matrix.platform }}" == "freebsd/arm64" ]]; then
-            # For FreeBSD, use cross for building
+          if [[ "${{ matrix.platform }}" == "freebsd/amd64" ]]; then
+            # For FreeBSD, use cross for building (only AMD64)
             cross build --target ${{ matrix.platform }} --release
           else
             # For other platforms (Windows, Linux, macOS), use native cargo build
