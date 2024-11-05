@@ -40,6 +40,7 @@ jobs:
           cargo install cross
           rustup target add x86_64-unknown-freebsd
           rustup target add aarch64-unknown-freebsd
+          rustc --print=target-list
 
       - name: Build project for ${{ matrix.platform }}
         run: |
