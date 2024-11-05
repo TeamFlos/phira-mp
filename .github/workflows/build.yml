@@ -48,18 +48,36 @@ jobs:
             cargo build --release -p phira-mp-server
           fi
 
+      - name: Check if build output exists
+        run: |
+          echo "Checking build output..."
+          ls target/release
+          ls target/x86_64-unknown-freebsd/release || true  # for FreeBSD
+
       - name: Rename build artifact for ${{ matrix.platform }}
         run: |
           mkdir -p build_output/${{ matrix.platform }}
           if [[ "${{ matrix.platform }}" == "freebsd/amd64" ]]; then
             # For FreeBSD, rename the artifact
-            mv target/x86_64-unknown-freebsd/release/phira-mp-server build_output/${{ matrix.platform }}/phira-mp-server-freebsd-amd64
+            if [[ -f target/x86_64-unknown-freebsd/release/phira-mp-server ]]; then
+              mv target/x86_64-unknown-freebsd/release/phira-mp-server build_output/${{ matrix.platform }}/phira-mp-server-freebsd-amd64
+            else
+              echo "FreeBSD build artifact not found"
+            fi
           elif [[ "${{ matrix.platform }}" == "windows/amd64" || "${{ matrix.platform }}" == "windows/arm64" ]]; then
             # For Windows, rename with .exe extension
-            mv target/release/phira-mp-server.exe build_output/${{ matrix.platform }}/phira-mp-server-windows-${{ matrix.platform }}.exe
+            if [[ -f target/release/phira-mp-server.exe ]]; then
+              mv target/release/phira-mp-server.exe build_output/${{ matrix.platform }}/phira-mp-server-windows-${{ matrix.platform }}.exe
+            else
+              echo "Windows build artifact not found"
+            fi
           else
             # For other platforms (Linux, macOS), rename without extension
-            mv target/release/phira-mp-server build_output/${{ matrix.platform }}/phira-mp-server-${{ matrix.platform }}
+            if [[ -f target/release/phira-mp-server ]]; then
+              mv target/release/phira-mp-server build_output/${{ matrix.platform }}/phira-mp-server-${{ matrix.platform }}
+            else
+              echo "Build artifact not found for ${matrix.platform}"
+            fi
           fi
 
   release:
