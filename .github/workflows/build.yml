@@ -57,6 +57,7 @@ jobs:
           else
             # For other platforms, copy from the default release directory
             cp target/release/phira-mp-server build_output/${{ matrix.platform }}/
+          fi
 
   release:
     runs-on: ubuntu-latest
