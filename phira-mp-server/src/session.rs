@@ -26,7 +26,7 @@ use tokio::{
 use tracing::{debug, debug_span, error, info, trace, warn, Instrument};
 use uuid::Uuid;
 
-const HOST: &str = "https://api.phira.cn";
+const HOST: &str = "https://phira.5wyxi.com";
 const MONITORS: &[i32] = &[2, 143245];
 
 pub struct User {
