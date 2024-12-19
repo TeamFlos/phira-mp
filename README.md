@@ -32,7 +32,7 @@ Then, build the project:
 ```shell
 cargo build --release -p phira-mp-server
 ```
-#### unning the Server
+#### Running the Server
 You can run the application with the following command:
 ```shell
 RUST_LOG=info target/release/phira-mp-server
