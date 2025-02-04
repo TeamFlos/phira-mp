@@ -85,9 +85,10 @@ For other issues, please refer to the specific error messages and adjust your en
 You can check the running process and the port it's listening on with:
 ```shell
 ps -aux | grep phira-mp-server
-netstat -tuln | grep 12345
+netstat -tuln | grep 12346
 ```
-![image](https://github.com/okatu-loli/phira-mp/assets/53247097/b533aee7-03c2-4920-aae9-a0b9e70ed576)
+![result](https://github.com/YuevUwU/phira-mp/assets/96368079/bb25398b-75af-47c3-8ba4-e609be26177b)
+
 
 ## For Windows or Android
 View: [https://docs.qq.com/doc/DU1dlekx3U096REdD](https://docs.qq.com/doc/DU1dlekx3U096REdD)

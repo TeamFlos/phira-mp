@@ -82,9 +82,9 @@ sudo dnf install pkg-config openssl-devel
 您可以检查正在运行的进程及其正在侦听的端口：
 ```shell
 ps -aux | grep phira-mp-server
-netstat -tuln | grep 12345
+netstat -tuln | grep 12346
 ```
-![image](https://github.com/okatu-loli/phira-mp/assets/53247097/b533aee7-03c2-4920-aae9-a0b9e70ed576)
+![result](https://i.imgur.com/NXC54ZZ.png)
 
 ## 对于 Windows 或 Android 用户
 查看: [https://docs.qq.com/doc/DU1dlekx3U096REdD](https://docs.qq.com/doc/DU1dlekx3U096REdD)
