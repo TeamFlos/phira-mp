@@ -1,2 +1,11 @@
 [build]
 rustflags = ["--cfg", "tokio_unstable"]
+
+[target.aarch64-linux-android]
+linker = "aarch64-linux-android30-clang"
+ar = "llvm-ar"
+rustflags = ["--cfg", "tokio_unstable"]
+
+[target.aarch64-linux-android.openssl]
+rustc-link-lib = ["ssl", "crypto"]
+rustc-link-search = ["/opt/android-ndk-r25c/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/30"]
