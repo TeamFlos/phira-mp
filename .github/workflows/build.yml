@@ -40,6 +40,12 @@ jobs:
             target: x86_64-unknown-freebsd
             artifact_name: phira-mp-server-freebsd-amd64
 
+          - platform: linux-arm64-android
+            os: ubuntu-latest
+            artifact_name: phira-mp-server-linux-arm64-android
+            use_container: true
+            target: aarch64-unknown-linux-musl  # 改用 musl 目标以静态链接
+
     runs-on: ${{ matrix.os }}
     name: 构建 ${{ matrix.platform }}
     
@@ -90,6 +96,32 @@ jobs:
             cd /workspace
             cargo build --release -p phira-mp-server
             cp target/release/phira-mp-server build_output/phira-mp-server-linux-arm64
+
+      # Android ARM64 专用构建步骤
+      - name: 针对于 Android ARM64 的构建并且准备产物
+        if: matrix.platform == 'linux-arm64-android'
+        uses: uraimo/run-on-arch-action@v2
+        id: androidarm64build
+        with:
+          arch: aarch64
+          distro: ubuntu22.04
+          githubToken: ${{ github.token }}
+          setup: |
+            mkdir -p "${PWD}/build_output"
+          dockerRunArgs: |
+            --volume "${PWD}:/workspace"
+          shell: /bin/bash
+          install: |
+            apt-get update -q -y
+            apt-get install -q -y curl build-essential pkg-config musl-tools
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+            source "$HOME/.cargo/env"
+            rustup target add aarch64-unknown-linux-musl
+          run: |
+            source "$HOME/.cargo/env"
+            cd /workspace
+            RUSTFLAGS='-C target-feature=+crt-static' cargo build --release -p phira-mp-server --target aarch64-unknown-linux-musl
+            cp target/aarch64-unknown-linux-musl/release/phira-mp-server build_output/phira-mp-server-linux-arm64-android
 
       # 非 ARM64 的构建步骤
       - name: 通用构建
