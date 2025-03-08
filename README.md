@@ -1,8 +1,3 @@
-# 我说几句，这个项目是基于 https://github.com/TeamFlos/phira-mp 的Github Action自动构建。目前Release的`v1.0.0`为原版（写了绑定ipv6但实际没法连接）和`修复未能成功绑定IPv6`版（详见[TeamFlos/phira-mp-issue15](https://github.com/TeamFlos/phira-mp/issues/15) 更改一些代码真正支持了ipv6）
-QEMU牛逼！
-
----
-
 # phira-mp
 
 `phira-mp` is a project developed with Rust. Below are the steps to deploy and run this project.
@@ -37,7 +32,7 @@ Then, build the project:
 ```shell
 cargo build --release -p phira-mp-server
 ```
-#### unning the Server
+#### Running the Server
 You can run the application with the following command:
 ```shell
 RUST_LOG=info target/release/phira-mp-server
@@ -47,6 +42,30 @@ The port can also be specified via parameters:
 ```shell
 RUST_LOG=info target/release/phira-mp-server --port 8080
 ```
+
+### For docker
+
+1. Create Dockerfile
+```
+FROM ubuntu:22.04
+
+RUN apt-get update && apt-get -y upgrade && apt-get install -y curl git build-essential pkg-config openssl libssl-dev
+
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+ENV PATH="/root/.cargo/bin:${PATH}"
+WORKDIR /root/
+RUN git clone https://github.com/TeamFlos/phira-mp
+WORKDIR /root/phira-mp
+RUN cargo build --release -p phira-mp-server
+
+ENTRYPOINT ["/root/phira-mp/target/release/phira-mp-server", "--port", "<preferred-port>"]
+```
+
+2. Build the image
+`docker build --tag phira-mp .`
+
+3. Run the container
+`docker run -it --name phira-mp -p <prefered-port>:<preferred-port> --restart=unless-stopped phira-mp`
 
 #### Troubleshooting
 If you encounter issues related to openssl, ensure that you have libssl-dev (for Ubuntu or Debian) or openssl-devel (for Fedora or CentOS) installed. If the issue persists, you can set the OPENSSL_DIR environment variable for the compilation process.

@@ -16,7 +16,7 @@ use std::{
         hash_map::{Entry, VacantEntry},
         HashMap,
     },
-    net::{Ipv4Addr, Ipv6Addr, SocketAddr},
+    net::{Ipv6Addr, SocketAddr},
     path::Path,
 };
 use tokio::{net::TcpListener, sync::RwLock};
@@ -45,7 +45,7 @@ pub fn init_log(file: &str) -> Result<WorkerGuard> {
     use tracing_subscriber::{filter, fmt, prelude::*, EnvFilter};
 
     let log_dir = Path::new("log");
-    if log_dir.exists() {
+    if (log_dir.exists()) {
         if !log_dir.is_dir() {
             panic!("log exists and is not a folder");
         }
@@ -100,48 +100,20 @@ async fn main() -> Result<()> {
 
     let args = Args::parse();
     let port = args.port;
-    
-    // 创建支持双栈的监听器
-    let v6_listener = match TcpListener::bind(SocketAddr::new(Ipv6Addr::UNSPECIFIED.into(), port)).await {
-        Ok(l) => {
-            // 尝试启用 IPv6-only 选项
-            if let Ok(socket) = l.into_std() {
-                if let Err(e) = socket.set_only_v6(false) {
-                    warn!("Failed to disable IPV6_V6ONLY: {}", e);
-                }
-                match TcpListener::from_std(socket) {
-                    Ok(l) => {
-                        println!("Listening on [::]:{} (IPv4 and IPv6)", port);
-                        Some(l)
-                    }
-                    Err(e) => {
-                        warn!("Failed to convert socket back to async: {}", e);
-                        None
-                    }
-                }
-            } else {
-                warn!("Failed to get standard socket");
-                None
-            }
-        }
-        Err(e) => {
-            warn!("Failed to bind IPv6: {}", e);
-            None
-        }
-    };
 
-    // 如果双栈模式失败，尝试仅 IPv4
-    let listener = if let Some(l) = v6_listener {
-        l.into()
-    } else {
-        println!("Falling back to IPv4 only");
-        TcpListener::bind(SocketAddr::new(Ipv4Addr::UNSPECIFIED.into(), port))
-            .await?
-            .into()
-    };
+    let v4_addr = SocketAddr::from(([0, 0, 0, 0], port));
+    let v6_addr = SocketAddr::from((Ipv6Addr::UNSPECIFIED, port));
 
-    let server: Server = listener;
+    println!("Listening on:");
+    println!("IPv4: {}", v4_addr);
+    println!("IPv6: {}", v6_addr);
+
+    let v4_listener = TcpListener::bind(v4_addr).await?;
+    let v6_listener = TcpListener::bind(v6_addr).await?;
     
+    let listeners = vec![v4_listener, v6_listener];
+    let server: Server = listeners.into();
+
     loop {
         if let Err(err) = server.accept().await {
             warn!("failed to accept: {err:?}");

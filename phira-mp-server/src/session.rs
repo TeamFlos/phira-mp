@@ -26,8 +26,7 @@ use tokio::{
 use tracing::{debug, debug_span, error, info, trace, warn, Instrument};
 use uuid::Uuid;
 
-const HOST: &str = "https://api.phira.cn";
-const MONITORS: &[i32] = &[2, 143245];
+const HOST: &str = "https://phira.5wyxi.com";
 
 pub struct User {
     pub id: i32,
@@ -71,7 +70,7 @@ impl User {
     }
 
     pub fn can_monitor(&self) -> bool {
-        MONITORS.contains(&self.id)
+        self.server.config.monitors.contains(&self.id)
     }
 
     pub async fn set_session(&self, session: Weak<Session>) {
