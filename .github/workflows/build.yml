@@ -35,6 +35,11 @@ jobs:
             artifact_name: phira-mp-server-linux-arm64
             use_container: true
             
+          - platform: linux-arm64-android
+            os: ubuntu-latest
+            artifact_name: phira-mp-server-linux-arm64-android
+            use_termux: true
+            
           - platform: freebsd-amd64
             os: ubuntu-latest
             target: x86_64-unknown-freebsd
@@ -47,9 +52,26 @@ jobs:
       - name: 检查仓库
         uses: actions/checkout@v3
 
+      # 为所有平台准备 Cargo 配置文件
+      - name: 准备 Cargo 配置
+        run: |
+          mkdir -p .cargo
+          echo '[build]' > .cargo/config.toml
+          echo 'rustflags = ["--cfg", "tokio_unstable"]' >> .cargo/config.toml
+          
+          # 为 Termux 目标添加特定配置
+          if [[ "${{ matrix.platform }}" == "linux-arm64-android" ]]; then
+            echo '' >> .cargo/config.toml
+            echo '[target.aarch64-linux-android]' >> .cargo/config.toml
+            echo 'linker = "aarch64-linux-android30-clang"' >> .cargo/config.toml
+            echo 'ar = "llvm-ar"' >> .cargo/config.toml
+            echo 'rustflags = ["--cfg", "tokio_unstable"]' >> .cargo/config.toml
+          fi
+        shell: bash
+
       # 常规构建步骤
-      - name: 设置Rust环境 (除 ARM 64 Linux)
-        if: ${{ !matrix.use_container }}
+      - name: 设置Rust环境 (除 ARM 64 Linux 和 Termux)
+        if: ${{ !matrix.use_container && !matrix.use_termux }}
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
@@ -67,7 +89,7 @@ jobs:
           cargo install cross
         shell: bash
 
-      # ARM64 专用构建步骤
+      # ARM64 Linux 专用构建步骤
       - name: 针对于 ARM64 Linux 的构建并且准备产物
         if: matrix.platform == 'linux-arm64'
         uses: uraimo/run-on-arch-action@v2
@@ -88,28 +110,89 @@ jobs:
           run: |
             source "$HOME/.cargo/env"
             cd /workspace
-            cargo build --release -p phira-mp-server
+            # 使用 tokio_unstable 标志
+            RUSTFLAGS="--cfg tokio_unstable" cargo build --release -p phira-mp-server
             cp target/release/phira-mp-server build_output/phira-mp-server-linux-arm64
 
-      # 非 ARM64 的构建步骤
+      # Termux ARM64 专用构建步骤
+      - name: 针对 Termux (Android ARM64) 构建
+        if: matrix.platform == 'linux-arm64-android'
+        run: |
+          # 创建 Docker 镜像用于 Termux 构建
+          cat > Dockerfile.termux << 'EOF'
+          FROM ubuntu:22.04
+          
+          ENV DEBIAN_FRONTEND=noninteractive
+          
+          # 安装必要工具
+          RUN apt-get update && apt-get install -y \
+              build-essential \
+              curl \
+              git \
+              pkg-config \
+              python3 \
+              unzip \
+              wget \
+              clang \
+              llvm \
+              lld \
+              cmake \
+              libssl-dev
+          
+          # 安装 Rust
+          RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+          ENV PATH="/root/.cargo/bin:${PATH}"
+          
+          # 安装 Android NDK
+          RUN mkdir -p /opt && \
+              cd /opt && \
+              wget -q https://dl.google.com/android/repository/android-ndk-r25c-linux.zip && \
+              unzip -q android-ndk-r25c-linux.zip && \
+              rm android-ndk-r25c-linux.zip
+          
+          ENV NDK=/opt/android-ndk-r25c
+          ENV TOOLCHAIN=$NDK/toolchains/llvm/prebuilt/linux-x86_64
+          ENV AR=$TOOLCHAIN/bin/llvm-ar
+          ENV CC=$TOOLCHAIN/bin/aarch64-linux-android30-clang
+          ENV CXX=$TOOLCHAIN/bin/aarch64-linux-android30-clang++
+          ENV CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER=$CC
+          
+          # 添加 Rust 目标
+          RUN rustup target add aarch64-linux-android
+          
+          WORKDIR /workspace
+          EOF
+          
+          # 构建 Docker 镜像
+          docker build -t termux-rust-builder -f Dockerfile.termux .
+          
+          # 创建构建输出目录
+          mkdir -p build_output
+          
+          # 在 Docker 容器中构建 - 确保使用 tokio_unstable 标志
+          docker run --rm -v ${{ github.workspace }}:/workspace termux-rust-builder \
+            bash -c 'cd /workspace && RUSTFLAGS="--cfg tokio_unstable" cargo build --release -p phira-mp-server --target aarch64-linux-android && cp target/aarch64-linux-android/release/phira-mp-server /workspace/build_output/phira-mp-server-linux-arm64-android'
+        shell: bash
+
+      # 非 ARM64 和非 Termux 的构建步骤
       - name: 通用构建
-        if: ${{ !matrix.use_container }}
+        if: ${{ !matrix.use_container && !matrix.use_termux }}
         shell: bash
         run: |
           if [[ "${{ matrix.platform }}" == "freebsd-amd64" ]]; then
             # Use cross for FreeBSD
-            cross build --release -p phira-mp-server --target ${{ matrix.target }}
+            RUSTFLAGS="--cfg tokio_unstable" cross build --release -p phira-mp-server --target ${{ matrix.target }}
           elif [[ "${{ matrix.platform }}" == "macos-arm64" ]]; then
             # For MacOS ARM64, use cargo with target
-            cargo build --release -p phira-mp-server --target ${{ matrix.target }}
+            RUSTFLAGS="--cfg tokio_unstable" cargo build --release -p phira-mp-server --target ${{ matrix.target }}
           else
             # For other platforms, use native cargo build
-            cargo build --release -p phira-mp-server
+            RUSTFLAGS="--cfg tokio_unstable" cargo build --release -p phira-mp-server
           fi
 
-      # 非 ARM64 的产物准备
-      - name: 准备构建产物 （除 ARM 64 Linux）
-        if: ${{ !matrix.use_container }}
+      # 非 ARM64 和非 Termux 的产物准备
+      - name: 准备构建产物 （除 ARM 64 Linux 和 Termux）
+        if: ${{ !matrix.use_container && !matrix.use_termux }}
         shell: bash
         run: |
           mkdir -p build_output
