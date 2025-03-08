@@ -45,7 +45,7 @@ pub fn init_log(file: &str) -> Result<WorkerGuard> {
     use tracing_subscriber::{filter, fmt, prelude::*, EnvFilter};
 
     let log_dir = Path::new("log");
-    if (log_dir.exists()) {
+    if log_dir.exists() {
         if !log_dir.is_dir() {
             panic!("log exists and is not a folder");
         }
