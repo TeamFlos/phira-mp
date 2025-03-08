@@ -89,13 +89,36 @@ jobs:
           shell: /bin/bash
           install: |
             apt-get update -q -y
-            apt-get install -q -y curl build-essential pkg-config libssl-dev
+            apt-get install -q -y curl build-essential pkg-config musl-tools
+            apt-get install -q -y musl-dev
+            # 安装交叉编译工具链
+            apt-get install -y musl-tools
+            # 安装 OpenSSL 源码并编译
+            apt-get install -y wget make perl
+            cd /tmp
+            wget https://www.openssl.org/source/openssl-3.0.8.tar.gz
+            tar xf openssl-3.0.8.tar.gz
+            cd openssl-3.0.8
+            ./Configure linux-aarch64 --prefix=/usr/local/musl --libdir=lib no-shared no-zlib -static --openssldir=/usr/local/musl/ssl
+            make -j$(nproc)
+            make install_sw
+            cd /workspace
+            # 安装 Rust
             curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+            source "$HOME/.cargo/env"
+            rustup target add aarch64-unknown-linux-musl
           run: |
             source "$HOME/.cargo/env"
             cd /workspace
-            cargo build --release -p phira-mp-server
-            cp target/release/phira-mp-server build_output/phira-mp-server-linux-arm64
+            # 配置 OpenSSL 环境变量
+            export OPENSSL_STATIC=1
+            export OPENSSL_DIR=/usr/local/musl
+            export PKG_CONFIG_PATH=/usr/local/musl/lib/pkgconfig
+            export PKG_CONFIG_ALLOW_CROSS=1
+            export RUSTFLAGS='-C target-feature=+crt-static'
+            # 构建
+            cargo build --release -p phira-mp-server --target aarch64-unknown-linux-musl
+            cp target/aarch64-unknown-linux-musl/release/phira-mp-server build_output/phira-mp-server-linux-arm64
 
       # Android ARM64 专用构建步骤
       - name: 针对于 Android ARM64 的构建并且准备产物
