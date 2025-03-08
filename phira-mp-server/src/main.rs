@@ -16,7 +16,7 @@ use std::{
         hash_map::{Entry, VacantEntry},
         HashMap,
     },
-    net::{Ipv6Addr, SocketAddr},
+    net::{Ipv4Addr, Ipv6Addr, SocketAddr},
     path::Path,
 };
 use tokio::{net::TcpListener, sync::RwLock};
@@ -100,19 +100,50 @@ async fn main() -> Result<()> {
 
     let args = Args::parse();
     let port = args.port;
-    let addrs: &[SocketAddr] = &[
-        SocketAddr::new(Ipv6Addr::UNSPECIFIED.into(), port),
-    ];
+    
+    // 创建支持双栈的监听器
+    let v6_listener = match TcpListener::bind(SocketAddr::new(Ipv6Addr::UNSPECIFIED.into(), port)).await {
+        Ok(l) => {
+            // 尝试启用 IPv6-only 选项
+            if let Ok(socket) = l.into_std() {
+                if let Err(e) = socket.set_only_v6(false) {
+                    warn!("Failed to disable IPV6_V6ONLY: {}", e);
+                }
+                match TcpListener::from_std(socket) {
+                    Ok(l) => {
+                        println!("Listening on [::]:{} (IPv4 and IPv6)", port);
+                        Some(l)
+                    }
+                    Err(e) => {
+                        warn!("Failed to convert socket back to async: {}", e);
+                        None
+                    }
+                }
+            } else {
+                warn!("Failed to get standard socket");
+                None
+            }
+        }
+        Err(e) => {
+            warn!("Failed to bind IPv6: {}", e);
+            None
+        }
+    };
 
-    // 打印本地地址和端口
-    for addr in addrs {
-        println!("Local Address: {}", addr);
-    }
+    // 如果双栈模式失败，尝试仅 IPv4
+    let listener = if let Some(l) = v6_listener {
+        l.into()
+    } else {
+        println!("Falling back to IPv4 only");
+        TcpListener::bind(SocketAddr::new(Ipv4Addr::UNSPECIFIED.into(), port))
+            .await?
+            .into()
+    };
 
-    let listener: Server = TcpListener::bind(addrs).await?.into();
-
+    let server: Server = listener;
+    
     loop {
-        if let Err(err) = listener.accept().await {
+        if let Err(err) = server.accept().await {
             warn!("failed to accept: {err:?}");
         }
     }

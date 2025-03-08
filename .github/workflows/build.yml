@@ -114,12 +114,20 @@ jobs:
           install: |
             apt-get update -q -y
             apt-get install -q -y curl build-essential pkg-config musl-tools
+            apt-get install -q -y musl-dev libssl-dev pkg-config
             curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
             source "$HOME/.cargo/env"
             rustup target add aarch64-unknown-linux-musl
           run: |
             source "$HOME/.cargo/env"
             cd /workspace
+            # 配置 pkg-config
+            export PKG_CONFIG_ALLOW_CROSS=1
+            export PKG_CONFIG_PATH="/usr/lib/aarch64-linux-gnu/pkgconfig"
+            export OPENSSL_DIR="/usr"
+            export OPENSSL_STATIC=1
+            
+            # 使用静态链接构建
             RUSTFLAGS='-C target-feature=+crt-static' cargo build --release -p phira-mp-server --target aarch64-unknown-linux-musl
             cp target/aarch64-unknown-linux-musl/release/phira-mp-server build_output/phira-mp-server-linux-arm64-android
 
