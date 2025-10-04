@@ -1,0 +1,184 @@
+name: Build executables and Docker images
+
+on:
+  workflow_dispatch:
+
+env:
+  BIN_NAME: phira-mp-server
+  PROJECT_NAME: phira-mp-server
+  IMAGE_NAME: ${{ github.repository_owner }}/phira-mp-server
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            runs-on: ubuntu-latest
+          - target: aarch64-unknown-linux-gnu
+            runs-on: ubuntu-24.04-arm
+
+          # cross is trying to build amd64 image on arm runner!
+          # i'm giving up to build not vendored openssl for musl linux
+          - target: x86_64-unknown-linux-musl
+            runs-on: ubuntu-latest
+            cross-needed: true
+            vendored-openssl: true
+          - target: aarch64-unknown-linux-musl
+            runs-on: ubuntu-latest
+            cross-needed: true
+            vendored-openssl: true
+
+          # i can't find a way to use non-vendored openssl for android build
+          # so i'm also giving up
+          - target: aarch64-linux-android
+            runs-on: ubuntu-latest
+            cross-needed: true
+            vendored-openssl: true
+          - target: x86_64-linux-android
+            runs-on: ubuntu-latest
+            cross-needed: true
+            vendored-openssl: true
+
+          - target: aarch64-apple-darwin
+            runs-on: macos-latest
+          - target: x86_64-apple-darwin
+            runs-on: macos-15-intel
+
+          - target: x86_64-pc-windows-msvc
+            runs-on: windows-latest
+          - target: aarch64-pc-windows-msvc
+            runs-on: windows-11-arm
+
+    name: Build ${{ matrix.target }}
+    runs-on: ${{ matrix.runs-on }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install cross if needed
+        if: matrix.cross-needed == true
+        run: |
+          cargo install cross --git https://github.com/cross-rs/cross
+
+      - name: Install Linux build dependencies (No cross)
+        if: matrix.cross-needed != true && runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libssl-dev
+
+      - name: Install build dependencies (No cross & Linux & musl)
+        if: matrix.cross-needed != true && runner.os == 'Linux' && endsWith(matrix.target, 'musl')
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y musl-tools
+
+      - name: Add rustup target (No cross)
+        if: matrix.cross-needed != true
+        run: rustup target add ${{ matrix.target }}
+
+      - name: Add vendored openssl
+        if: matrix.vendored-openssl == true
+        run: cargo add openssl --features vendored --package phira-mp-server
+
+      - name: Build binary
+        run: >
+          ${{ matrix.cross-needed == true && 'cross' || 'cargo' }}
+          build --target ${{ matrix.target }} --release --workspace
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.BIN_NAME }}-${{ matrix.target }}
+          path: ./target/${{ matrix.target }}/release/${{ env.BIN_NAME }}${{ runner.os == 'Windows' && '.exe' || '' }}
+
+  image:
+    name: Build images
+    needs:
+      - build
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+
+    steps:
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create staging directory for binaries
+        run: mkdir -p amd64 arm64
+
+      - name: Download x86_64-unknown-linux-musl artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.BIN_NAME }}-x86_64-unknown-linux-musl
+          path: amd64
+
+      - name: Download aarch64-unknown-linux-musl artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.BIN_NAME }}-aarch64-unknown-linux-musl
+          path: arm64
+
+      - name: Make binaries executable
+        run: |
+          chmod +x amd64/${{ env.BIN_NAME }}
+          chmod +x arm64/${{ env.BIN_NAME }}
+
+      - name: Write Dockerfile
+        run: |
+          cat << EOF > Dockerfile
+          FROM alpine:3
+          ARG TARGETARCH
+          WORKDIR /app
+          RUN apk add --no-cache openssl
+          COPY \${TARGETARCH}/${{ env.BIN_NAME }} .
+          EXPOSE 12346
+          ENTRYPOINT ["./${{ env.BIN_NAME }}"]
+          EOF
+
+      - name: Extract metadata for Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ env.IMAGE_NAME }}
+          tags: |
+            type=sha,prefix=
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=ref,event=branch
+
+      - name: Build and push Docker image
+        id: build-and-push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Sign the published Docker image
+        env:
+          TAGS: ${{ steps.meta.outputs.tags }}
+          DIGEST: ${{ steps.build-and-push.outputs.digest }}
+        run: echo "${TAGS}" | xargs -I {} cosign sign --yes {}@${DIGEST}
