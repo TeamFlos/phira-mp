@@ -37,7 +37,7 @@ jobs:
           key: release-${{ matrix.target }}
 
       - name: Install cross
-        run: cargo install cross --git https://github.com/cross-rs/cross
+        run: cargo install cross --version 0.2.5
 
       - name: Build ${{ matrix.target }}
         run: cross build --release --workspace --target ${{ matrix.target }}
