@@ -6,6 +6,7 @@ members = [
     "phira-mp-server",
 ]
 resolver = "2"
+rust-version = "1.91"
 
 [profile.release]
 opt-level = 2
