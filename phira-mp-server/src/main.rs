@@ -100,9 +100,7 @@ async fn main() -> Result<()> {
 
     let args = Args::parse();
     let port = args.port;
-    let addrs: &[SocketAddr] = &[
-        SocketAddr::new(Ipv6Addr::UNSPECIFIED.into(), port),
-    ];
+    let addrs: &[SocketAddr] = &[SocketAddr::new(Ipv6Addr::UNSPECIFIED.into(), port)];
 
     // 打印本地地址和端口
     for addr in addrs {
