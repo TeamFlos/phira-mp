@@ -1,11 +1,12 @@
 [workspace]
 members = [
-	"phira-mp-common",
-	"phira-mp-client",
-	"phira-mp-macros",
-	"phira-mp-server",
+    "phira-mp-common",
+    "phira-mp-client",
+    "phira-mp-macros",
+    "phira-mp-server",
 ]
 resolver = "2"
+rust-version = "1.91"
 
 [profile.release]
 opt-level = 2

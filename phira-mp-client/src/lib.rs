@@ -29,6 +29,12 @@ pub struct LivePlayer {
     pub judge_events: Mutex<Vec<JudgeEvent>>,
 }
 
+impl Default for LivePlayer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl LivePlayer {
     pub fn new() -> Self {
         Self {

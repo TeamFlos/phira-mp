@@ -204,7 +204,7 @@ impl Room {
         })
         .write()
         .await
-        .retain(|it| it.upgrade().map_or(false, |it| it.id != user.id));
+        .retain(|it| it.upgrade().is_some_and(|it| it.id != user.id));
         if self.check_host(user).await.is_ok() {
             info!("host disconnected!");
             let users = self.users().await;
