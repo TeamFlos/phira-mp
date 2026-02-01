@@ -456,7 +456,9 @@ async fn process(user: Arc<User>, cmd: ClientCommand) -> Option<ServerCommand> {
                     bail!("already in room");
                 }
                 let room = user.server.rooms.read().await.get(&id).map(Arc::clone);
-                let Some(room) = room else { bail!("room not found") };
+                let Some(room) = room else {
+                    bail!("room not found")
+                };
                 if room.locked.load(Ordering::SeqCst) {
                     bail!(tl!("join-room-locked"));
                 }
