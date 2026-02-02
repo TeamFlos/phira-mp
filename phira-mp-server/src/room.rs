@@ -88,10 +88,14 @@ impl Room {
             .to_client(self.chart.read().await.as_ref().map(|it| it.id))
     }
 
+    pub async fn fake_room_state(&self) -> RoomState {
+        RoomState::SelectChart(self.chart.read().await.as_ref().map(|it| it.id))
+    }
+
     pub async fn client_state(&self, user: &User) -> ClientRoomState {
         ClientRoomState {
             id: self.id.clone(),
-            state: self.client_room_state().await,
+            state: self.fake_room_state().await,
             live: self.is_live(),
             locked: self.is_locked(),
             cycle: self.is_cycle(),

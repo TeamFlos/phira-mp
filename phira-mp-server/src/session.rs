@@ -5,7 +5,7 @@ use crate::{
 use anyhow::{anyhow, bail, Result};
 use phira_mp_common::{
     ClientCommand, JoinRoomResponse, Message, ServerCommand, Stream, UserInfo,
-    HEARTBEAT_DISCONNECT_TIMEOUT,
+    RoomState, HEARTBEAT_DISCONNECT_TIMEOUT,
 };
 use serde::Deserialize;
 use std::{
@@ -253,6 +253,18 @@ impl Session {
                                             room_state,
                                         ))))
                                         .await;
+
+                                    if let Some(room) = user.room.read().await.as_ref() {
+                                        let state = room.client_room_state().await;
+
+                                        if !matches!(state, RoomState::SelectChart(_)) {
+
+                                            time::sleep(Duration::from_nanos(1)).await;
+
+                                            let _ = send_tx.send(ServerCommand::ChangeState(state)).await;
+                                        }
+                                    };
+
                                     waiting_for_authenticate.store(false, Ordering::SeqCst);
                                 }
                                 return;
