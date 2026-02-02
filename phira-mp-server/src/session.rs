@@ -173,7 +173,7 @@ impl Session {
                                     let server = Arc::clone(&server);
                                     async move {
                                         let token = token.into_inner();
-                                        if token.len() != 32 {
+                                        if token.len() > 32 {
                                             bail!("invalid token");
                                         }
                                         debug!("session {id}: authenticate {token}");
