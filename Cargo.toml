@@ -1,3 +1,6 @@
+[workspace.package]
+license-file = "LICENSE"
+
 [workspace]
 members = [
     "phira-mp-common",
