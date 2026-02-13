@@ -13,8 +13,8 @@ use anyhow::Result;
 use clap::Parser;
 use std::{
     collections::{
-        hash_map::{Entry, VacantEntry},
         HashMap,
+        hash_map::{Entry, VacantEntry},
     },
     net::{Ipv6Addr, SocketAddr},
     path::Path,
@@ -40,9 +40,9 @@ fn vacant_entry<V>(map: &mut HashMap<Uuid, V>) -> VacantEntry<'_, Uuid, V> {
 }
 
 pub fn init_log(file: &str) -> Result<WorkerGuard> {
-    use tracing::{metadata::LevelFilter, Level};
+    use tracing::{Level, metadata::LevelFilter};
     use tracing_log::LogTracer;
-    use tracing_subscriber::{filter, fmt, prelude::*, EnvFilter};
+    use tracing_subscriber::{EnvFilter, filter, fmt, prelude::*};
 
     let log_dir = Path::new("log");
     if log_dir.exists() {

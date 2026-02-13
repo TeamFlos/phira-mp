@@ -1,4 +1,4 @@
-use crate::{vacant_entry, IdMap, Room, SafeMap, Session, User};
+use crate::{IdMap, Room, SafeMap, Session, User, vacant_entry};
 use anyhow::Result;
 use phira_mp_common::RoomId;
 use serde::Deserialize;

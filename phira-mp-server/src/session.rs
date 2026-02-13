@@ -1,29 +1,30 @@
 use crate::{
-    l10n::{Language, LANGUAGE},
-    tl, Chart, InternalRoomState, Record, Room, ServerState,
+    Chart, InternalRoomState, Record, Room, ServerState,
+    l10n::{LANGUAGE, Language},
+    tl,
 };
-use anyhow::{anyhow, bail, Result};
+use anyhow::{Result, anyhow, bail};
 use phira_mp_common::{
-    ClientCommand, JoinRoomResponse, Message, ServerCommand, Stream, UserInfo,
-    HEARTBEAT_DISCONNECT_TIMEOUT,
+    ClientCommand, HEARTBEAT_DISCONNECT_TIMEOUT, JoinRoomResponse, Message, ServerCommand, Stream,
+    UserInfo,
 };
 use serde::Deserialize;
 use std::{
-    collections::{hash_map::Entry, HashSet},
+    collections::{HashSet, hash_map::Entry},
     ops::DerefMut,
     sync::{
-        atomic::{AtomicBool, AtomicU32, Ordering},
         Arc, Weak,
+        atomic::{AtomicBool, AtomicU32, Ordering},
     },
     time::{Duration, Instant},
 };
 use tokio::{
     net::TcpStream,
-    sync::{oneshot, Mutex, Notify, OnceCell, RwLock},
+    sync::{Mutex, Notify, OnceCell, RwLock, oneshot},
     task::JoinHandle,
     time,
 };
-use tracing::{debug, debug_span, error, info, trace, warn, Instrument};
+use tracing::{Instrument, debug, debug_span, error, info, trace, warn};
 use uuid::Uuid;
 
 const HOST: &str = "https://phira.5wyxi.com";
