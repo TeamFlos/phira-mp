@@ -12,6 +12,8 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
+          toolchain: ${{ vars.RUST_TOOLCHAIN }}
+          
       - uses: Swatinem/rust-cache@v2
       - name: cargo fmt
         run: cargo fmt --all -- --check
@@ -23,6 +25,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
+          toolchain: ${{ vars.RUST_TOOLCHAIN }}
       - uses: Swatinem/rust-cache@v2
       - name: cargo clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
@@ -32,6 +35,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ vars.RUST_TOOLCHAIN }}
       - uses: Swatinem/rust-cache@v2
       - name: Install system deps
         run: sudo apt-get update && sudo apt-get install -y pkg-config libssl-dev

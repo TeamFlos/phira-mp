@@ -1,10 +1,10 @@
-use fluent::{bundle::FluentBundle, FluentArgs, FluentError, FluentResource};
+use fluent::{FluentArgs, FluentError, FluentResource, bundle::FluentBundle};
 use fluent_syntax::ast::Pattern;
 use lru::LruCache;
 use once_cell::sync::Lazy;
 use std::{borrow::Cow, cell::RefCell, collections::HashMap, sync::Arc};
 use tracing::error;
-use unic_langid::{langid, LanguageIdentifier};
+use unic_langid::{LanguageIdentifier, langid};
 
 pub static LANGS: [&str; 3] = ["en-US", "zh-CN", "zh-TW"]; // this should be consistent with the macro below (BUNDLES)
 pub static IDENTS: Lazy<[LanguageIdentifier; 3]> =

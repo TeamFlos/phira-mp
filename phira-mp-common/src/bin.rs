@@ -1,6 +1,6 @@
 use std::{collections::HashMap, hash::Hash};
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use byteorder::{ByteOrder, LittleEndian as LE};
 use chrono::{DateTime, TimeZone, Utc};
 use tap::TapFallible;
