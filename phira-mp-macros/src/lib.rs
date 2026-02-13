@@ -42,7 +42,7 @@ fn parse_type(typ: &Type) -> TypeInfo {
         _ => (typ, false),
     };
     let (_typ, is_vec) = match typ {
-        Type::Path(ref path) => {
+        Type::Path(path) => {
             let last = path.path.segments.last().unwrap();
             if last.ident == "Vec" {
                 (
