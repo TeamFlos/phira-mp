@@ -266,15 +266,14 @@ impl Session {
                         if let Some(resp) = LANGUAGE
                             .scope(Arc::new(user.lang.clone()), process(user, cmd))
                             .await
-                            && let Err(err) = send_tx.send(resp).await {
-                                error!(
-                                    "failed to handle message, aborting connection {id}: {err:?}",
-                                );
-                                panicked.store(true, Ordering::SeqCst);
-                                if let Err(err) = server.lost_con_tx.send(id).await {
-                                    error!("failed to mark lost connection ({id}): {err:?}");
-                                }
+                            && let Err(err) = send_tx.send(resp).await
+                        {
+                            error!("failed to handle message, aborting connection {id}: {err:?}",);
+                            panicked.store(true, Ordering::SeqCst);
+                            if let Err(err) = server.lost_con_tx.send(id).await {
+                                error!("failed to mark lost connection ({id}): {err:?}");
                             }
+                        }
                     }
                 }
             }),

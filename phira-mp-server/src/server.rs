@@ -84,9 +84,9 @@ impl From<TcpListener> for Server {
                             .await
                             .as_ref()
                             .is_some_and(|it| it.ptr_eq(&Arc::downgrade(&session)))
-                        {
-                            Arc::clone(&session.user).dangle().await;
-                        }
+                    {
+                        Arc::clone(&session.user).dangle().await;
+                    }
                 }
             }
         });
