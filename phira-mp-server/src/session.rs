@@ -266,8 +266,7 @@ impl Session {
                         if let Some(resp) = LANGUAGE
                             .scope(Arc::new(user.lang.clone()), process(user, cmd))
                             .await
-                        {
-                            if let Err(err) = send_tx.send(resp).await {
+                            && let Err(err) = send_tx.send(resp).await {
                                 error!(
                                     "failed to handle message, aborting connection {id}: {err:?}",
                                 );
@@ -276,7 +275,6 @@ impl Session {
                                     error!("failed to mark lost connection ({id}): {err:?}");
                                 }
                             }
-                        }
                     }
                 }
             }),

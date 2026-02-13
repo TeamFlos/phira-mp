@@ -76,8 +76,8 @@ impl From<TcpListener> for Server {
             async move {
                 while let Some(id) = lost_con_rx.recv().await {
                     warn!("lost connection with {id}");
-                    if let Some(session) = state.sessions.write().await.remove(&id) {
-                        if session
+                    if let Some(session) = state.sessions.write().await.remove(&id)
+                        && session
                             .user
                             .session
                             .read()
@@ -87,7 +87,6 @@ impl From<TcpListener> for Server {
                         {
                             Arc::clone(&session.user).dangle().await;
                         }
-                    }
                 }
             }
         });
