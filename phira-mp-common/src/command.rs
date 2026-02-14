@@ -1,5 +1,5 @@
 use crate::{BinaryData, BinaryReader, BinaryWriter};
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use half::f16;
 use phira_mp_macros::BinaryData;
 use std::{collections::HashMap, fmt::Display, sync::Arc};
@@ -79,10 +79,10 @@ impl<const N: usize> BinaryData for Varchar<N> {
 pub struct RoomId(Varchar<20>);
 impl RoomId {
     fn validate(self) -> Result<Self> {
-        if self.0 .0.is_empty()
+        if self.0.0.is_empty()
             || !self
                 .0
-                 .0
+                .0
                 .chars()
                 .all(|it| it == '-' || it == '_' || it.is_ascii_alphanumeric())
         {
@@ -94,7 +94,7 @@ impl RoomId {
 
 impl From<RoomId> for String {
     fn from(value: RoomId) -> Self {
-        value.0 .0
+        value.0.0
     }
 }
 
@@ -108,7 +108,7 @@ impl TryFrom<String> for RoomId {
 
 impl Display for RoomId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.0 .0.fmt(f)
+        self.0.0.fmt(f)
     }
 }
 

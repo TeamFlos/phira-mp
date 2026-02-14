@@ -1,13 +1,13 @@
 use crate::{Chart, Record, User};
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use phira_mp_common::{ClientRoomState, Message, RoomId, RoomState, ServerCommand};
 use rand::{seq::SliceRandom, thread_rng};
 use std::{
     collections::{HashMap, HashSet},
     ops::Deref,
     sync::{
-        atomic::{AtomicBool, Ordering},
         Arc, Weak,
+        atomic::{AtomicBool, Ordering},
     },
 };
 use tokio::sync::RwLock;
@@ -204,7 +204,7 @@ impl Room {
         })
         .write()
         .await
-        .retain(|it| it.upgrade().map_or(false, |it| it.id != user.id));
+        .retain(|it| it.upgrade().is_some_and(|it| it.id != user.id));
         if self.check_host(user).await.is_ok() {
             info!("host disconnected!");
             let users = self.users().await;

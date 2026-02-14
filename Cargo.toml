@@ -1,9 +1,13 @@
+[workspace.package]
+license-file = "LICENSE"
+edition = "2024"
+
 [workspace]
 members = [
-	"phira-mp-common",
-	"phira-mp-client",
-	"phira-mp-macros",
-	"phira-mp-server",
+    "phira-mp-common",
+    "phira-mp-client",
+    "phira-mp-macros",
+    "phira-mp-server",
 ]
 resolver = "2"
 

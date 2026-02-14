@@ -1,4 +1,4 @@
-use crate::{vacant_entry, IdMap, Room, SafeMap, Session, User};
+use crate::{IdMap, Room, SafeMap, Session, User, vacant_entry};
 use anyhow::Result;
 use phira_mp_common::RoomId;
 use serde::Deserialize;
@@ -76,17 +76,16 @@ impl From<TcpListener> for Server {
             async move {
                 while let Some(id) = lost_con_rx.recv().await {
                     warn!("lost connection with {id}");
-                    if let Some(session) = state.sessions.write().await.remove(&id) {
-                        if session
+                    if let Some(session) = state.sessions.write().await.remove(&id)
+                        && session
                             .user
                             .session
                             .read()
                             .await
                             .as_ref()
-                            .map_or(false, |it| it.ptr_eq(&Arc::downgrade(&session)))
-                        {
-                            Arc::clone(&session.user).dangle().await;
-                        }
+                            .is_some_and(|it| it.ptr_eq(&Arc::downgrade(&session)))
+                    {
+                        Arc::clone(&session.user).dangle().await;
                     }
                 }
             }
