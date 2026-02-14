@@ -67,20 +67,6 @@ ENTRYPOINT ["/root/phira-mp/target/release/phira-mp-server", "--port", "<preferr
 3. Run the container
 `docker run -it --name phira-mp -p <prefered-port>:<preferred-port> --restart=unless-stopped phira-mp`
 
-#### Troubleshooting
-If you encounter issues related to openssl, ensure that you have libssl-dev (for Ubuntu or Debian) or openssl-devel (for Fedora or CentOS) installed. If the issue persists, you can set the OPENSSL_DIR environment variable for the compilation process.
-
-If you're compiling on Linux and targeting Linux and get a message about pkg-config being missing, you may need to install it:
-
-```shell
-# For Ubuntu or Debian
-sudo apt install pkg-config libssl-dev 
-
-# For Fedora or CentOS
-sudo dnf install pkg-config openssl-devel
-```
-For other issues, please refer to the specific error messages and adjust your environment accordingly.
-
 #### Monitoring
 You can check the running process and the port it's listening on with:
 ```shell

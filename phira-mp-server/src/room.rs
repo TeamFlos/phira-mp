@@ -1,7 +1,7 @@
 use crate::{Chart, Record, User};
 use anyhow::{Result, bail};
 use phira_mp_common::{ClientRoomState, Message, RoomId, RoomState, ServerCommand};
-use rand::{seq::SliceRandom, thread_rng};
+use rand::seq::IndexedRandom;
 use std::{
     collections::{HashMap, HashSet},
     ops::Deref,
@@ -212,7 +212,7 @@ impl Room {
                 info!("room users all disconnected, dropping room");
                 return true;
             } else {
-                let user = users.choose(&mut thread_rng()).unwrap();
+                let user = users.choose(&mut rand::rng()).unwrap();
                 debug!("selected {} as host", user.id);
                 *self.host.write().await = Arc::downgrade(user);
                 self.send(Message::NewHost { user: user.id }).await;

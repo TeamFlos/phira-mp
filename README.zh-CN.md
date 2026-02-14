@@ -64,20 +64,6 @@ ENTRYPOINT ["/root/phira-mp/target/release/phira-mp-server", "--port", "<preferr
 3. 运行容器
 `docker run -it --name phira-mp -p <prefered-port>:<preferred-port> --restart=unless-stopped phira-mp`
 
-#### 故障排除
-如果遇到与 openssl 相关的问题，请确保安装了 libssl-dev（适用于 Ubuntu 或 Debian）或 openssl-devel（适用于 Fedora 或 CentOS）。 如果问题仍然存在，您可以为编译过程设置 OPENSSL_DIR 环境变量。
-
-如果您在 Linux 上进行编译并以 Linux 为目标，并收到有关缺少 pkg-config 的消息，则可能需要安装它：
-
-```shell
-# 对于 Ubuntu 或 Debian
-sudo apt install pkg-config libssl-dev 
-
-# 对于 Fedora 或 CentOS
-sudo dnf install pkg-config openssl-devel
-```
-其他问题请参考具体错误信息并相应调整您的环境。
-
 #### 监控
 您可以检查正在运行的进程及其正在侦听的端口：
 ```shell
