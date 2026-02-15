@@ -1,0 +1,28 @@
+name: Build phira-mp-server
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Install Rust
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        override: true
+        
+    - name: Build
+      run: cargo build --release -p phira-mp-server
+      
+    - name: Upload Binary
+      uses: actions/upload-artifact@v3
+      with:
+        name: phira-mp-server
+        path: target/release/phira-mp-server
