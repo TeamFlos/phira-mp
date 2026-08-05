@@ -1,3 +1,5 @@
+pub mod resolver;
+
 use anyhow::{Context, Error, Result};
 use dashmap::DashMap;
 use phira_mp_common::{
@@ -165,6 +167,13 @@ impl Client {
             ping_fail_count,
             ping_task_handle,
         })
+    }
+
+    pub async fn from_address(addr: &str) -> Result<Self> {
+        let auth: http::uri::Authority = addr.parse().context("Invalid server address")?;
+        let resolved_addr = resolver::resolve(&auth).await?;
+        let stream = TcpStream::connect(resolved_addr).await?;
+        Self::new(stream).await
     }
 
     pub fn me(&self) -> Option<UserInfo> {

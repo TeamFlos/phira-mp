@@ -9,6 +9,8 @@ edition.workspace = true
 anyhow = { workspace = true }
 chrono = { workspace = true }
 dashmap = "6.1.0"
+hickory-resolver = "0.25.2"
+http = "1"
 tokio = { workspace = true }
 tracing = { workspace = true }
 uuid = { workspace = true, features = ["v4"] }
