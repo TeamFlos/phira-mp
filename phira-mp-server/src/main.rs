@@ -107,7 +107,7 @@ async fn main() -> Result<()> {
         println!("Local Address: {}", addr);
     }
 
-    let listener: Server = TcpListener::bind(addrs).await?.into();
+    let listener: Server = TcpListener::bind(addrs).await?.try_into()?;
 
     loop {
         if let Err(err) = listener.accept().await {

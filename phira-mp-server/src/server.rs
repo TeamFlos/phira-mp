@@ -1,11 +1,13 @@
 use crate::{IdMap, Room, SafeMap, Session, User, vacant_entry};
-use anyhow::Result;
+use anyhow::{Context, Result};
 use phira_mp_common::RoomId;
-use serde::Deserialize;
-use std::{fs::File, sync::Arc};
+use serde::{Deserialize, Serialize};
+use std::{fs::File, io, sync::Arc};
 use tokio::{net::TcpListener, sync::mpsc, task::JoinHandle};
 use tracing::{info, warn};
 use uuid::Uuid;
+
+const CONFIG_PATH: &str = "server_config.yml";
 
 #[derive(Debug, Deserialize)]
 pub struct Chart {
@@ -13,7 +15,7 @@ pub struct Chart {
     pub name: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct ServerConfig {
     pub monitors: Vec<i32>,
 }
@@ -55,13 +57,24 @@ pub struct Server {
     lost_con_handle: JoinHandle<()>,
 }
 
-impl From<TcpListener> for Server {
-    fn from(listener: TcpListener) -> Self {
+impl TryFrom<TcpListener> for Server {
+    type Error = anyhow::Error;
+    fn try_from(listener: TcpListener) -> Result<Server, Self::Error> {
         let (lost_con_tx, mut lost_con_rx) = mpsc::channel(16);
-        let config: ServerConfig = File::open("server_config.yml")
-            .ok()
-            .and_then(|f| serde_yaml::from_reader(f).ok())
-            .unwrap_or_default();
+        let config: ServerConfig = match File::open(CONFIG_PATH) {
+            Ok(file) => serde_yaml::from_reader(file)
+                .with_context(|| format!("Failed to parse {CONFIG_PATH}")),
+            Err(e) if e.kind() == io::ErrorKind::NotFound => {
+                let default_cfg = ServerConfig::default();
+                warn!(
+                    "{CONFIG_PATH} is not found.\nFallback to default config:\n```yaml\n{}```",
+                    serde_yaml::to_string(&default_cfg).unwrap()
+                );
+                Ok(default_cfg)
+            }
+            Err(e) => Err(e).with_context(|| format!("Failed to open {CONFIG_PATH}")),
+        }?;
+        info!("User IDs allowed to monitor matches: {:?}", config.monitors);
         let state = Arc::new(ServerState {
             config,
             sessions: IdMap::default(),
@@ -91,12 +104,12 @@ impl From<TcpListener> for Server {
             }
         });
 
-        Self {
+        Ok(Self {
             listener,
             state,
 
             lost_con_handle,
-        }
+        })
     }
 }
 
