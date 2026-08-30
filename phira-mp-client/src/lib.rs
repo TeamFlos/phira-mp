@@ -530,7 +530,14 @@ impl Client {
     }
 
     #[inline]
-    pub async fn played(
+    pub async fn played(&self, id: i32) -> Result<()> {
+        self.rcall(ClientCommand::Played { id }, &self.state.cb_played)
+            .await
+    }
+
+    /// 本地谱面成绩直传（无官方 record id，客户端上报真实成绩）
+    #[inline]
+    pub async fn played_with_score(
         &self,
         id: i32,
         score: u32,
