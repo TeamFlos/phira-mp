@@ -175,6 +175,37 @@ pub enum ClientCommand {
     CancelReady,
     Played { id: i32 },
     Abort,
+
+    // LocalChart: 房主选择本地谱面分享给房间内玩家（id 为随机 UUID，8-4-4-4-12）
+    SelectLocalChart { id: Varchar<40>, name: Varchar<64> },
+    // LocalChart: 房主改选在线谱面，取消本地谱面分享
+    SelectOnlineChart { id: i32 },
+    // LocalChart: 房主通知服务端已就绪作为下载服务器，可以开始向玩家提供下载
+    SendChart { addr: String, port: u16 },
+    // LocalChart: 玩家通知服务端谱面下载完成，可以就绪
+    DownloadReady,
+
+    // 本地谱面分享：房主上传谱面包（经 game 连接，兼容内网穿透）
+    UploadChart { id: Varchar<40>, data: Vec<u8> },
+    // 本地谱面分享：玩家请求下载谱面包
+    DownloadChart { id: Varchar<40> },
+    // LocalChart: 房主取消本地谱面分享（删除服务端缓存、重置所有玩家就绪状态）
+    CancelLocalChart,
+    // LocalChart: 玩家取消已就绪（尚未开始游玩前可取消）
+    CancelDownloadReady,
+
+    // 新版客户端直传最终成绩；追加在枚举末尾，保持原版命令编号兼容。
+    PlayedWithScore {
+        id: i32,
+        score: u32,
+        accuracy: f32,
+        full_combo: bool,
+        max_combo: u32,
+        perfect: u32,
+        good: u32,
+        bad: u32,
+        miss: u32,
+    },
 }
 
 #[derive(Clone, Debug, BinaryData)]
@@ -231,6 +262,20 @@ pub enum Message {
     CycleRoom {
         cycle: bool,
     },
+    // LocalChart: 房主选择了本地谱面
+    SelectLocalChart {
+        user: i32,
+        name: String,
+        id: String,
+    },
+    // LocalChart: 房主通知服务端上传服务器已就绪
+    SendChart {
+        user: i32,
+    },
+    // LocalChart: 玩家下载完成，通知房主
+    DownloadReady {
+        user: i32,
+    },
 }
 
 #[derive(Debug, BinaryData, Clone, Copy)]
@@ -238,6 +283,8 @@ pub enum RoomState {
     SelectChart(Option<i32>),
     WaitingForReady,
     Playing,
+    // 房主选择本地谱面，房间进入本地分享阶段（谱面 id 通过 ChangeLocalChart 命令下发）
+    LocalChart,
 }
 
 impl Default for RoomState {
@@ -305,4 +352,39 @@ pub enum ServerCommand {
     CancelReady(SResult<()>),
     Played(SResult<()>),
     Abort(SResult<()>),
+
+    // LocalChart: 服务端下发本地谱面分享状态（房间所有人、包括房主都会收到）
+    ChangeLocalChart {
+        local: bool,
+        chart_id: String,
+    },
+    // LocalChart: 服务端通知房主启动本地的下载服务器（房主收到后应开 HTTP 服务器并发 SendChart）
+    StartServing {
+        chart_id: String,
+        chart_name: String,
+    },
+    // LocalChart: 服务端通知各非房主玩家开始从房主下载谱面
+    StartDownload {
+        host_id: i32,
+        host_name: String,
+        addr: String,
+        port: u16,
+        chart_id: String,
+        chart_name: String,
+    },
+    // LocalChart: 服务端通知房主所有玩家已下载完成，可以开始游戏
+    HostReady,
+    // LocalChart: 服务端通知所有客户端本地谱面分享已取消（重置就绪状态，仍停留在选谱/分享阶段）
+    LocalChartCanceled,
+    // 回执
+    SelectLocalChart(SResult<()>),
+    SelectOnlineChart(SResult<()>),
+    SendChart(SResult<()>),
+    DownloadReady(SResult<()>),
+    CancelLocalChart(SResult<()>),
+    CancelDownloadReady(SResult<()>),
+
+    // 本地谱面分享：上传回执 / 下载数据
+    UploadChart(SResult<()>),
+    DownloadChart(SResult<Vec<u8>>),
 }

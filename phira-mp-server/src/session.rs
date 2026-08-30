@@ -137,10 +137,17 @@ impl Session {
         let this = Arc::new(OnceCell::<Arc<Session>>::new());
         let this_inited = Arc::new(Notify::new());
         let (tx, rx) = oneshot::channel::<Arc<User>>();
-        let last_recv: Arc<Mutex<Instant>> = Arc::new(Mutex::new(Instant::now()));
+        let last_recv: Arc<std::sync::Mutex<Instant>> = Arc::new(std::sync::Mutex::new(Instant::now()));
+        // 大帧（如本地谱面包上传）接收期间也要持续刷新心跳时间戳，
+        // 否则一次较慢的大帧传输会触发心跳超时，被误判为掉线并销毁房间。
+        let activity_last_recv = Arc::clone(&last_recv);
+        let activity: Option<Arc<dyn Fn() + Send + Sync>> = Some(Arc::new(move || {
+            *activity_last_recv.lock().unwrap() = Instant::now();
+        }));
         let stream = Stream::<ServerCommand, ClientCommand>::new(
             None,
             stream,
+            activity,
             Box::new({
                 let this = Arc::clone(&this);
                 let this_inited = Arc::clone(&this_inited);
@@ -158,7 +165,7 @@ impl Session {
                     let waiting_for_authenticate = Arc::clone(&waiting_for_authenticate);
                     let panicked = Arc::clone(&panicked);
                     async move {
-                        *last_recv.lock().await = Instant::now();
+                        *last_recv.lock().unwrap() = Instant::now();
                         if panicked.load(Ordering::SeqCst) {
                             return;
                         }
@@ -283,10 +290,10 @@ impl Session {
             let last_recv = Arc::clone(&last_recv);
             async move {
                 loop {
-                    let recv = *last_recv.lock().await;
+                    let recv = *last_recv.lock().unwrap();
                     time::sleep_until((recv + HEARTBEAT_DISCONNECT_TIMEOUT).into()).await;
 
-                    if *last_recv.lock().await + HEARTBEAT_DISCONNECT_TIMEOUT > Instant::now() {
+                    if *last_recv.lock().unwrap() + HEARTBEAT_DISCONNECT_TIMEOUT > Instant::now() {
                         continue;
                     }
 
@@ -331,6 +338,61 @@ impl Drop for Session {
     fn drop(&mut self) {
         self.monitor_task_handle.abort();
     }
+}
+
+async fn handle_played_score(
+    user: Arc<User>,
+    id: i32,
+    score: u32,
+    accuracy: f32,
+    full_combo: bool,
+    max_combo: u32,
+    perfect: u32,
+    good: u32,
+    bad: u32,
+    miss: u32,
+) -> Result<()> {
+    let room = user
+        .room
+        .read()
+        .await
+        .as_ref()
+        .map(Arc::clone)
+        .ok_or_else(|| anyhow!("no room"))?;
+    let record = Record {
+        id,
+        player: user.id,
+        score: score as i32,
+        perfect: perfect as i32,
+        good: good as i32,
+        bad: bad as i32,
+        miss: miss as i32,
+        max_combo: max_combo as i32,
+        accuracy,
+        full_combo,
+        std: 0.,
+        std_score: 0.,
+    };
+    debug!(room = room.id.to_string(), user = user.id, "user played: {record:?}");
+    room.send(Message::Played {
+        user: user.id,
+        score: record.score,
+        accuracy: record.accuracy,
+        full_combo: record.full_combo,
+    })
+    .await;
+    let mut guard = room.state.write().await;
+    if let InternalRoomState::Playing { results, aborted } = guard.deref_mut() {
+        if aborted.contains(&user.id) {
+            bail!("aborted");
+        }
+        if results.insert(user.id, record).is_some() {
+            bail!("already uploaded");
+        }
+        drop(guard);
+        room.check_all_ready().await;
+    }
+    Ok(())
 }
 
 async fn process(user: Arc<User>, cmd: ClientCommand) -> Option<ServerCommand> {
@@ -593,8 +655,28 @@ async fn process(user: Arc<User>, cmd: ClientCommand) -> Option<ServerCommand> {
 
         ClientCommand::RequestStart => {
             let res: Result<()> = async move {
-                get_room!(room, InternalRoomState::SelectChart);
+                get_room!(room);
                 room.check_host(&user).await?;
+                // 本地谱面分享阶段：房主点开始 -> 通知房主启动下载服务器
+                if matches!(*room.state.read().await, InternalRoomState::LocalChart { .. }) {
+                    let (chart_id, chart_name) = {
+                        let guard = room.local_chart.read().await;
+                        let (id, name) =
+                            guard.clone().ok_or_else(|| anyhow!(tl!("start-no-chart-selected")))?;
+                        (id, name)
+                    };
+                    debug!(room = room.id.to_string(), "local chart request start, host will serve");
+                    user.try_send(ServerCommand::StartServing { chart_id, chart_name })
+                        .await;
+                    return Ok(());
+                }
+                // 校验必须在 SelectChart 状态
+                {
+                    let state = room.state.read().await;
+                    if !matches!(*state, InternalRoomState::SelectChart) {
+                        bail!("invalid state");
+                    }
+                }
                 if room.chart.read().await.is_none() {
                     bail!(tl!("start-no-chart-selected"));
                 }
@@ -651,41 +733,288 @@ async fn process(user: Arc<User>, cmd: ClientCommand) -> Option<ServerCommand> {
             Some(ServerCommand::CancelReady(err_to_str(res)))
         }
         ClientCommand::Played { id } => {
-            let res: Result<()> = async move {
-                get_room!(room);
-                let res: Record = reqwest::get(format!("{HOST}/record/{id}"))
-                    .await?
-                    .error_for_status()?
-                    .json()
-                    .await?;
-                if res.player != user.id {
-                    bail!("invalid record");
+            let user_id = user.id;
+            // 无官方 record id（-1）时没有可回源的成绩，直接返回成功，不请求 /record/-1。
+            if id == -1 {
+                return Some(ServerCommand::Played(Ok(())));
+            }
+            tokio::spawn(async move {
+                let fetched: Result<Record> = async {
+                    let res: Record = reqwest::get(format!("{HOST}/record/{id}"))
+                        .await?
+                        .error_for_status()?
+                        .json()
+                        .await?;
+                    if res.player != user_id {
+                        bail!("invalid record");
+                    }
+                    Ok(res)
                 }
-                debug!(
+                .await;
+                match fetched {
+                    Ok(record) => {
+                        let _ = handle_played_score(
+                            user,
+                            record.id,
+                            record.score.max(0) as u32,
+                            record.accuracy,
+                            record.full_combo,
+                            record.max_combo.max(0) as u32,
+                            record.perfect.max(0) as u32,
+                            record.good.max(0) as u32,
+                            record.bad.max(0) as u32,
+                            record.miss.max(0) as u32,
+                        )
+                        .await;
+                    }
+                    Err(err) => {
+                        warn!(user = user_id, record = id, "failed to fetch official record: {err:?}");
+                    }
+                }
+            });
+            Some(ServerCommand::Played(Ok(())))
+        }
+
+        // 房主选择本地谱面，房间进入 LocalChart 分享阶段
+        ClientCommand::SelectLocalChart { id, name } => {
+            let res: Result<()> = async move {
+                get_room!(room, InternalRoomState::SelectChart);
+                room.check_host(&user).await?;
+                let id = id.into_inner();
+                let name = name.into_inner();
+                info!(
                     room = room.id.to_string(),
                     user = user.id,
-                    "user played: {res:?}"
+                    chart = %id,
+                    "host selected local chart"
                 );
-                room.send(Message::Played {
+                // 记录本地谱面 (UUID id, name)
+                *room.local_chart.write().await = Some((id.clone(), name.clone()));
+                // 房间进入 LocalChart 状态
+                *room.state.write().await = InternalRoomState::LocalChart {
+                    started: HashSet::new(),
+                };
+                // 广播给房间内所有人：进入本地谱面分享
+                room.broadcast(ServerCommand::ChangeLocalChart { local: true, chart_id: id.clone() })
+                    .await;
+                room.send(Message::SelectLocalChart {
                     user: user.id,
-                    score: res.score,
-                    accuracy: res.accuracy,
-                    full_combo: res.full_combo,
+                    name,
+                    id,
                 })
                 .await;
+                room.on_state_change().await;
+                Ok(())
+            }
+            .await;
+            Some(ServerCommand::SelectLocalChart(err_to_str(res)))
+        }
+
+        // 房主改选在线谱面，取消本地谱面分享
+        ClientCommand::SelectOnlineChart { id } => {
+            let res: Result<()> = async move {
+                get_room!(room);
+                room.check_host(&user).await?;
+                // 若当前处于本地谱面分享状态，先取消
+                if matches!(*room.state.read().await, InternalRoomState::LocalChart { .. }) {
+                    info!(room = room.id.to_string(), user = user.id, "cancel local chart sharing");
+                    *room.local_chart.write().await = None;
+                    room.broadcast(ServerCommand::ChangeLocalChart { local: false, chart_id: String::new() })
+                        .await;
+                    *room.state.write().await = InternalRoomState::SelectChart;
+                }
+                // 校验必须在 SelectChart 状态（取消后即是）
+                {
+                    let state = room.state.read().await;
+                    if !matches!(*state, InternalRoomState::SelectChart) {
+                        bail!(tl!("chart-select-not-now"));
+                    }
+                }
+                let span = debug_span!(
+                    "select online chart",
+                    user = user.id,
+                    room = room.id.to_string(),
+                    chart = id,
+                );
+                async move {
+                    trace!("fetch");
+                    let res: Chart = reqwest::get(format!("{HOST}/chart/{id}"))
+                        .await?
+                        .error_for_status()?
+                        .json()
+                        .await?;
+                    debug!("chart is {res:?}");
+                    room.send(Message::SelectChart {
+                        user: user.id,
+                        name: res.name.clone(),
+                        id: res.id,
+                    })
+                    .await;
+                    *room.chart.write().await = Some(res);
+                    room.on_state_change().await;
+                    Ok(())
+                }
+                .instrument(span)
+                .await
+            }
+            .await;
+            Some(ServerCommand::SelectOnlineChart(err_to_str(res)))
+        }
+
+        // 房主作为下载服务器就绪，通知玩家开始从服务端下载
+        ClientCommand::SendChart { .. } => {
+            let res: Result<()> = async move {
+                get_room!(room);
+                room.check_host(&user).await?;
+                let (chart_id, chart_name) = {
+                    let guard = room.local_chart.read().await;
+                    guard
+                        .clone()
+                        .ok_or_else(|| anyhow!(tl!("start-no-chart-selected")))?
+                };
+                info!(
+                    room = room.id.to_string(),
+                    user = user.id,
+                    chart = %chart_id,
+                    "host is sharing local chart via server relay"
+                );
+                room.send(Message::SendChart { user: user.id }).await;
+                // 服务端中转：把下载信息分发给所有需要下载的玩家（非房主、非 monitor 观察者）。
+                // 谱面包经 game 连接（DownloadChart 命令）从服务端下载，无需房主直连地址。
+                let host_name = user.name.clone();
+                for player in room.users().await {
+                    if player.id == user.id || player.monitor.load(Ordering::SeqCst) {
+                        continue;
+                    }
+                    player
+                        .try_send(ServerCommand::StartDownload {
+                            host_id: user.id,
+                            host_name: host_name.clone(),
+                            addr: String::new(),
+                            port: 0,
+                            chart_id: chart_id.clone(),
+                            chart_name: chart_name.clone(),
+                        })
+                        .await;
+                }
+                // 触发就绪判定：若无其他需要下载的玩家（如房间只有房主），立即通知房主并开始游戏
+                room.check_all_ready().await;
+                Ok(())
+            }
+            .await;
+            Some(ServerCommand::SendChart(err_to_str(res)))
+        }
+
+        // 玩家下载完成，标记就绪
+        ClientCommand::DownloadReady => {
+            let res: Result<()> = async move {
+                get_room!(room);
+                // 房主尚未上传完谱面时，禁止其他玩家提前就绪
+                if !room.chart_uploaded.load(Ordering::SeqCst) {
+                    bail!(tl!("chart-not-uploaded-yet"));
+                }
                 let mut guard = room.state.write().await;
-                if let InternalRoomState::Playing { results, aborted } = guard.deref_mut() {
-                    if aborted.contains(&user.id) {
-                        bail!("aborted");
+                if let InternalRoomState::LocalChart { started } = guard.deref_mut() {
+                    if !started.insert(user.id) {
+                        bail!("already ready");
                     }
-                    if results.insert(user.id, res).is_some() {
-                        bail!("already uploaded");
-                    }
+                    info!(room = room.id.to_string(), user = user.id, "local chart downloaded");
+                    room.send(Message::DownloadReady { user: user.id }).await;
                     drop(guard);
                     room.check_all_ready().await;
                 }
                 Ok(())
             }
+            .await;
+            Some(ServerCommand::DownloadReady(err_to_str(res)))
+        }
+
+        // 本地谱面分享：房主上传谱面包到服务端中转（经 game 连接，兼容内网穿透）
+        ClientCommand::UploadChart { id, data } => {
+            let res: Result<()> = async move {
+                let id = id.into_inner();
+                let size = data.len();
+                user.server.chart_cache.write().await.insert(id.clone(), data);
+                // 标记该房间房主已上传完成，玩家此后才可就绪/下载
+                if let Some(room) = user.room.read().await.as_ref().map(Arc::clone) {
+                    room.chart_uploaded.store(true, Ordering::SeqCst);
+                }
+                info!(user = user.id, chart = %id, size, "host uploaded chart");
+                Ok(())
+            }
+            .await;
+            Some(ServerCommand::UploadChart(err_to_str(res)))
+        }
+
+        // 本地谱面分享：玩家从服务端获取谱面包
+        ClientCommand::DownloadChart { id } => {
+            let res: Result<Vec<u8>> = async move {
+                let id = id.into_inner();
+                user.server
+                    .chart_cache
+                    .read()
+                    .await
+                    .get(&id)
+                    .cloned()
+                    .ok_or_else(|| anyhow!("chart not found: {id}"))
+            }
+            .await;
+            Some(ServerCommand::DownloadChart(err_to_str(res)))
+        }
+
+        // 房主取消本地谱面分享：删除服务端缓存、重置所有玩家就绪状态
+        ClientCommand::CancelLocalChart => {
+            let res: Result<()> = async move {
+                get_room!(room);
+                room.check_host(&user).await?;
+                info!(room = room.id.to_string(), user = user.id, "host canceled local chart sharing");
+                if let Some((chart_id, _)) = room.local_chart.read().await.clone() {
+                    user.server.chart_cache.write().await.remove(&chart_id);
+                    info!(room = room.id.to_string(), chart = %chart_id, "cleared chart cache on cancel");
+                }
+                room.chart_uploaded.store(false, Ordering::SeqCst);
+                // 重置 LocalChart 就绪集合，让所有玩家可以重新准备
+                if let InternalRoomState::LocalChart { started } = &mut *room.state.write().await {
+                    started.clear();
+                }
+                // 广播取消事件，让所有客户端重置就绪/开始按钮状态
+                room.broadcast(ServerCommand::LocalChartCanceled).await;
+                room.on_state_change().await;
+                Ok(())
+            }
+            .await;
+            Some(ServerCommand::CancelLocalChart(err_to_str(res)))
+        }
+
+        // 玩家取消已就绪（尚未开始游玩前可取消）
+        ClientCommand::CancelDownloadReady => {
+            let res: Result<()> = async move {
+                get_room!(room);
+                let mut guard = room.state.write().await;
+                if let InternalRoomState::LocalChart { started } = guard.deref_mut() {
+                    started.remove(&user.id);
+                    info!(room = room.id.to_string(), user = user.id, "player canceled local chart ready");
+                }
+                Ok(())
+            }
+            .await;
+            Some(ServerCommand::CancelDownloadReady(err_to_str(res)))
+        }
+
+        // 新版客户端直传最终成绩（本地谱面无官方 record id，需客户端上报真实成绩）
+        ClientCommand::PlayedWithScore { id, score, accuracy, full_combo, max_combo, perfect, good, bad, miss } => {
+            let res = handle_played_score(
+                user,
+                id,
+                score,
+                accuracy,
+                full_combo,
+                max_combo,
+                perfect,
+                good,
+                bad,
+                miss,
+            )
             .await;
             Some(ServerCommand::Played(err_to_str(res)))
         }

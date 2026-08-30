@@ -48,6 +48,7 @@ where
     pub async fn new<F>(
         version: Option<u8>,
         stream: TcpStream,
+        activity: Option<Arc<dyn Fn() + Send + Sync>>,
         mut handler: Box<dyn FnMut(Arc<mpsc::Sender<S>>, R) -> F + Send + Sync>,
     ) -> Result<Self>
     where
@@ -101,6 +102,7 @@ where
 
         let recv_task_handle = tokio::spawn({
             let send_tx = Arc::clone(&send_tx);
+            let activity = activity;
             #[allow(clippy::read_zero_byte_vec)]
             async move {
                 let mut buffer = Vec::new();
@@ -118,13 +120,25 @@ where
                             bail!("invalid length");
                         }
                     }
-                    if len > 2 * 1024 * 1024 {
+                    if len > 512 * 1024 * 1024 {
                         bail!("data packet too large");
                     }
                     let len = len as usize;
 
                     buffer.resize(len, 0);
-                    read.read_exact(&mut buffer).await?;
+                    // 分块读取，并在读取过程中刷新活动时间戳（心跳），
+                    // 避免大帧（如本地谱面包）传输期间因心跳超时被误判为掉线。
+                    let mut read_pos = 0;
+                    while read_pos < len {
+                        let n = read.read(&mut buffer[read_pos..]).await?;
+                        if n == 0 {
+                            bail!("eof while reading packet");
+                        }
+                        read_pos += n;
+                        if let Some(activity) = &activity {
+                            activity();
+                        }
+                    }
                     trace!("received {} bytes: {buffer:?}", buffer.len());
 
                     let payload: R = match decode_packet(&buffer) {

@@ -47,6 +47,9 @@ pub struct ServerState {
     pub rooms: SafeMap<RoomId, Arc<Room>>,
 
     pub lost_con_tx: mpsc::Sender<Uuid>,
+
+    // 本地谱面分享中转缓存：chart_uuid -> zip 字节（房主上传，玩家经 game 连接下载）
+    pub chart_cache: SafeMap<String, Vec<u8>>,
 }
 
 pub struct Server {
@@ -70,6 +73,8 @@ impl From<TcpListener> for Server {
             rooms: SafeMap::default(),
 
             lost_con_tx,
+
+            chart_cache: SafeMap::default(),
         });
         let lost_con_handle = tokio::spawn({
             let state = Arc::clone(&state);

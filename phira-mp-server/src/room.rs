@@ -26,6 +26,10 @@ pub enum InternalRoomState {
         results: HashMap<i32, Record>,
         aborted: HashSet<i32>,
     },
+    // 房主选择了本地谱面，处于本地分享阶段；started = 已同步完成的玩家 id 集合
+    LocalChart {
+        started: HashSet<i32>,
+    },
 }
 
 impl InternalRoomState {
@@ -34,6 +38,7 @@ impl InternalRoomState {
             Self::SelectChart => RoomState::SelectChart(chart),
             Self::WaitForReady { .. } => RoomState::WaitingForReady,
             Self::Playing { .. } => RoomState::Playing,
+            Self::LocalChart { .. } => RoomState::LocalChart,
         }
     }
 }
@@ -50,6 +55,10 @@ pub struct Room {
     users: RwLock<Vec<Weak<User>>>,
     monitors: RwLock<Vec<Weak<User>>>,
     pub chart: RwLock<Option<Chart>>,
+    // 正在分享的本地谱面 (UUID id, 名称)
+    pub local_chart: RwLock<Option<(String, String)>>,
+    // 房主是否已上传本地谱面包到服务端缓存（玩家须等上传完成后才能就绪/下载）
+    pub chart_uploaded: AtomicBool,
 }
 
 impl Room {
@@ -66,6 +75,8 @@ impl Room {
             users: vec![host].into(),
             monitors: Vec::new().into(),
             chart: RwLock::default(),
+            local_chart: RwLock::default(),
+            chart_uploaded: AtomicBool::new(false),
         }
     }
 
@@ -207,6 +218,14 @@ impl Room {
         .retain(|it| it.upgrade().is_some_and(|it| it.id != user.id));
         if self.check_host(user).await.is_ok() {
             info!("host disconnected!");
+            // 若游戏进行中房主退出，直接结束本局，回到选谱界面，
+            // 避免因其他成员未完成而卡在 Playing 状态、无法进入下一轮。
+            if matches!(*self.state.read().await, InternalRoomState::Playing { .. }) {
+                info!(room = self.id.to_string(), "host left during playing, ending game");
+                *self.local_chart.write().await = None;
+                *self.state.write().await = InternalRoomState::SelectChart;
+                self.on_state_change().await;
+            }
             let users = self.users().await;
             if users.is_empty() {
                 info!("room users all disconnected, dropping room");
@@ -233,6 +252,48 @@ impl Room {
     pub async fn check_all_ready(&self) {
         let guard = self.state.read().await;
         match guard.deref() {
+            InternalRoomState::LocalChart { started } => {
+                // 本地谱面分享阶段：所有需要下载的玩家（非房主、非 monitor 观察者）
+                // 就绪后，通知房主并开始游戏。若房间只有房主一人，无需下载，直接视为就绪。
+                // 前提：房主必须先上传谱面包到服务端缓存（chart_uploaded）。
+                let users = self.users().await;
+                let all_downloaded = self.chart_uploaded.load(Ordering::SeqCst)
+                    && match self.host.read().await.upgrade() {
+                        Some(host) => {
+                            let hid = host.id;
+                            users
+                                .iter()
+                                .filter(|it| it.id != hid && !it.monitor.load(Ordering::SeqCst))
+                                .all(|it| started.contains(&it.id))
+                        }
+                        None => false,
+                    };
+                if all_downloaded {
+                    drop(guard);
+                    info!(room = self.id.to_string(), "local chart all downloaded, game start");
+                    // 通知房主所有玩家已下载完成，可以关闭下载连接
+                    if let Some(host) = self.host.read().await.upgrade() {
+                        // 游戏即将开始：删除服务端缓存的谱面包，避免占用磁盘空间
+                        if let Some((chart_id, _)) = self.local_chart.read().await.clone() {
+                            host.server
+                                .chart_cache
+                                .write()
+                                .await
+                                .remove(&chart_id);
+                            info!(room = self.id.to_string(), chart = %chart_id, "cleared chart cache after game start");
+                        }
+                        host.try_send(ServerCommand::HostReady).await;
+                    }
+                    self.chart_uploaded.store(false, Ordering::SeqCst);
+                    self.send(Message::StartPlaying).await;
+                    self.reset_game_time().await;
+                    *self.state.write().await = InternalRoomState::Playing {
+                        results: HashMap::new(),
+                        aborted: HashSet::new(),
+                    };
+                    self.on_state_change().await;
+                }
+            }
             InternalRoomState::WaitForReady { started } => {
                 if self
                     .users()
@@ -264,6 +325,12 @@ impl Room {
                     self.send(Message::GameEnd).await;
                     // dbg!(2);
                     *self.state.write().await = InternalRoomState::SelectChart;
+                    // 清空本地谱面残留状态并通知所有客户端退出本地谱面分享，
+                    // 避免本地谱面游玩结束后切换到在线谱面时状态错乱（卡在转圈/无法开始）。
+                    *self.local_chart.write().await = None;
+                    self.chart_uploaded.store(false, Ordering::SeqCst);
+                    self.broadcast(ServerCommand::ChangeLocalChart { local: false, chart_id: String::new() })
+                        .await;
                     // dbg!(3);
                     if self.is_cycle() {
                         debug!(room = self.id.to_string(), "cycling");
